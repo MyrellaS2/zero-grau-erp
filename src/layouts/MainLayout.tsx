@@ -2,10 +2,10 @@ import Sidebar from "../components/Sidebar"
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div>
+    <div className="flex">
       <Sidebar />
 
-      <main>
+      <main className="flex-1 p-8">
         {children}
       </main>
     </div>

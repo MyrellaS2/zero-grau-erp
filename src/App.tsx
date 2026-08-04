@@ -1,10 +1,10 @@
 import MainLayout from "./layouts/MainLayout"
+import Dashboard from "./pages/Dashboard"
 
 function App() {
   return (
     <MainLayout>
-      <h1>Dashboard</h1>
-      <p>Sistema de gestão da ZERO GRAU</p>
+      <Dashboard />
     </MainLayout>
   )
 }
