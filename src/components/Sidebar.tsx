@@ -6,6 +6,7 @@ import {
   BarChart3,
   Settings
 } from "lucide-react"
+import { Link } from "react-router-dom"
 
 function Sidebar() {
   return (
@@ -16,35 +17,35 @@ function Sidebar() {
 
       <nav className="space-y-4">
 
-        <a className="flex items-center gap-3">
-          <Home size={20}/>
-          Dashboard
-        </a>
+        <Link to="/" className="flex items-center gap-3">
+  <Home size={20}/>
+  Dashboard
+</Link>
 
-        <a className="flex items-center gap-3">
-          <Package size={20}/>
-          Produtos
-        </a>
+        <Link to="/produtos" className="flex items-center gap-3">
+  <Package size={20}/>
+  Produtos
+</Link>
 
-        <a className="flex items-center gap-3">
-          <ShoppingCart size={20}/>
-          Vendas
-        </a>
+        <Link to="/vendas" className="flex items-center gap-3">
+  <ShoppingCart size={20}/>
+  Vendas
+</Link>
 
-        <a className="flex items-center gap-3">
-          <Wallet size={20}/>
-          Caixa
-        </a>
+        <Link to="/caixa" className="flex items-center gap-3">
+  <Wallet size={20}/>
+  Caixa
+</Link>
 
-        <a className="flex items-center gap-3">
-          <BarChart3 size={20}/>
-          Relatórios
-        </a>
+        <Link to="/relatorios" className="flex items-center gap-3">
+  <BarChart3 size={20}/>
+  Relatórios
+</Link>
 
-        <a className="flex items-center gap-3">
-          <Settings size={20}/>
-          Configurações
-        </a>
+        <Link to="/configuracoes" className="flex items-center gap-3">
+  <Settings size={20}/>
+  Configurações
+</Link>
 
       </nav>
     </aside>
