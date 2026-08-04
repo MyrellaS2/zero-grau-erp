@@ -1,9 +1,11 @@
+import MainLayout from "./layouts/MainLayout"
+
 function App() {
   return (
-    <div>
-      <h1>ZERO GRAU ERP</h1>
-      <p>Sistema de gestão</p>
-    </div>
+    <MainLayout>
+      <h1>Dashboard</h1>
+      <p>Sistema de gestão da ZERO GRAU</p>
+    </MainLayout>
   )
 }
 
