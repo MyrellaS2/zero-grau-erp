@@ -1,3 +1,5 @@
+import { products } from "../data/products"
+
 function Produtos() {
   return (
     <div>
@@ -24,9 +26,35 @@ function Produtos() {
           Lista de produtos
         </h2>
 
-        <p className="mt-4 text-gray-500">
-          Nenhum produto cadastrado.
-        </p>
+
+        <div className="mt-4 space-y-3">
+
+          {products.map((product) => (
+            <div 
+              key={product.id}
+              className="border rounded-lg p-4"
+            >
+
+              <h3 className="font-bold">
+                {product.name}
+              </h3>
+
+              <p>
+                Categoria: {product.category}
+              </p>
+
+              <p>
+                Estoque: {product.stock}
+              </p>
+
+              <p>
+                Venda: R$ {product.salePrice.toFixed(2)}
+              </p>
+
+            </div>
+          ))}
+
+        </div>
 
       </div>
 
