@@ -1,4 +1,35 @@
+import { useEffect, useState } from "react"
 function Dashboard() {
+
+  const [products, setProducts] = useState<any[]>([])
+
+  useEffect(() => {
+    const saved = localStorage.getItem("products")
+
+    if (saved) {
+      setProducts(JSON.parse(saved))
+    }
+  }, [])
+
+
+  const totalProducts = products.length
+
+  const lowStock = products.filter(
+    (product) => product.stock <= 5
+  ).length
+  const stockPurchaseValue = products.reduce(
+  (total, product) =>
+    total + product.stock * product.purchasePrice,
+  0
+)
+
+const stockSaleValue = products.reduce(
+  (total, product) =>
+    total + product.stock * product.salePrice,
+  0
+)
+
+
   return (
     <div>
 
@@ -15,10 +46,10 @@ function Dashboard() {
 
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="text-gray-500">
-            💰 Vendas hoje
+            💰 Valor investido
           </h2>
           <p className="text-3xl font-bold mt-2">
-            R$ 0,00
+            R$ {stockPurchaseValue.toFixed(2)}
           </p>
         </div>
 
@@ -28,7 +59,7 @@ function Dashboard() {
             📦 Produtos
           </h2>
           <p className="text-3xl font-bold mt-2">
-            0
+            {totalProducts}
           </p>
         </div>
 
@@ -38,8 +69,8 @@ function Dashboard() {
             📈 Faturamento
           </h2>
           <p className="text-3xl font-bold mt-2">
-            R$ 0,00
-          </p>
+  R$ {stockSaleValue.toFixed(2)}
+</p>
         </div>
 
 
@@ -48,11 +79,41 @@ function Dashboard() {
             ⚠ Estoque baixo
           </h2>
           <p className="text-3xl font-bold mt-2">
-            0
+            {lowStock}
           </p>
         </div>
 
       </div>
+      <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
+  <h2 className="font-bold text-lg">
+    ⚠ Produtos com estoque baixo
+  </h2>
+
+  <div className="mt-4 space-y-2">
+
+    {products
+      .filter((product) => product.stock <= 5)
+      .map((product) => (
+        <div
+          key={product.id}
+          className="flex justify-between border-b pb-2"
+        >
+          <span>
+            {product.name}
+          </span>
+
+          <span className="font-bold text-red-600">
+            {product.stock} un
+          </span>
+
+        </div>
+      ))
+    }
+
+  </div>
+
+</div>
 
     </div>
   )
