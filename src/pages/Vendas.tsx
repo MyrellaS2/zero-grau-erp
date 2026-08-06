@@ -5,8 +5,9 @@ function Vendas() {
   const [products, setProducts] = useState<any[]>([])
   const [sales, setSales] = useState<any[]>([])
 
-  const [productId, setProductId] = useState("")
-  const [quantity, setQuantity] = useState("")
+ const [productId, setProductId] = useState("")
+const [quantity, setQuantity] = useState("")
+const [productSearch, setProductSearch] = useState("")
   const [cart, setCart] = useState<any[]>([])
 
   const [customer, setCustomer] = useState("")
@@ -30,6 +31,19 @@ function Vendas() {
     }
 
   }, [])
+  const filteredProducts = products.filter((product) =>
+  (
+    product.name +
+    " " +
+    product.brand +
+    " " +
+    product.flavor +
+    " " +
+    product.volume
+  )
+  .toLowerCase()
+  .includes(productSearch.toLowerCase())
+)
 
 
 
@@ -428,33 +442,42 @@ function deleteSale(id:number){
           </h2>
 
 
-          <select
-            className="border p-2 rounded w-full mt-4"
-            value={productId}
-            onChange={(e)=>setProductId(e.target.value)}
-          >
-
-            <option value="">
-              Selecione o produto
-            </option>
+          <input
+  className="border p-2 rounded w-full mt-4"
+  placeholder="Pesquisar produto..."
+  value={productSearch}
+  onChange={(e)=>setProductSearch(e.target.value)}
+/>
 
 
-            {products.map((product)=>(
+<div className="mt-2 max-h-48 overflow-auto border rounded">
 
-              <option
-                key={product.id}
-                value={product.id}
-              >
-                {product.name}
+{filteredProducts.map((product)=>(
+
+<button
+  key={product.id}
+  onClick={()=>{
+    setProductId(product.id.toString())
+    setProductSearch(
+      product.name +
+      (product.brand ? ` • ${product.brand}` : "") +
+      (product.flavor ? ` • ${product.flavor}` : "") +
+      (product.volume ? ` • ${product.volume}` : "")
+    )
+  }}
+  className="block w-full text-left p-2 hover:bg-gray-100"
+>
+
+{product.name}
 {product.brand && ` • ${product.brand}`}
 {product.flavor && ` • ${product.flavor}`}
 {product.volume && ` • ${product.volume}`}
-              </option>
 
-            ))}
+</button>
 
+))}
 
-          </select>
+</div>
 
 
           <input
