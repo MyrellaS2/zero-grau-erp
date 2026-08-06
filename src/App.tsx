@@ -8,6 +8,7 @@ import Vendas from "./pages/Vendas"
 import Caixa from "./pages/Caixa"
 import Relatorios from "./pages/Relatorios"
 import Configuracoes from "./pages/Configuracoes"
+import Fiados from "./pages/Fiados"
 
 
 function App() {
@@ -22,6 +23,8 @@ function App() {
 
           <Route path="/produtos" element={<Produtos />} />
           <Route path="/vendas" element={<Vendas />} />
+
+<Route path="/fiados" element={<Fiados />} />
 
 <Route path="/caixa" element={<Caixa />} />
 

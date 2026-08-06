@@ -4,13 +4,14 @@ import {
   ShoppingCart,
   Wallet,
   BarChart3,
-  Settings
+  Settings,
+  FileText
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
 function Sidebar() {
   return (
-    <aside className="w-64 min-h-screen bg-black text-white p-6">
+    <aside className="fixed left-0 top-0 w-64 h-screen bg-black text-white p-6">
       <h1 className="text-2xl font-bold text-blue-500 mb-8">
         ZERO GRAU
       </h1>
@@ -30,6 +31,10 @@ function Sidebar() {
         <Link to="/vendas" className="flex items-center gap-3">
   <ShoppingCart size={20}/>
   Vendas
+</Link>
+<Link to="/fiados" className="flex items-center gap-3">
+  <FileText size={20}/>
+  Fiados
 </Link>
 
         <Link to="/caixa" className="flex items-center gap-3">

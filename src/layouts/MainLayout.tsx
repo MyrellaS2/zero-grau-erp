@@ -5,7 +5,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
     <div className="flex">
       <Sidebar />
 
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 ml-64">
         {children}
       </main>
     </div>
