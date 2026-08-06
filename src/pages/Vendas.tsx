@@ -85,16 +85,33 @@ function Vendas() {
     } else {
 
       setCart([
-        ...cart,
-        {
-          id: product.id,
-          name: product.name,
-          quantity: qtd,
-          salePrice: product.salePrice,
-          purchasePrice: product.purchasePrice,
-          total: product.salePrice * qtd
-        }
-      ])
+  ...cart,
+  {
+    id: product.id,
+
+    name: product.name,
+
+    displayName:
+      product.name +
+      (product.brand
+        ? ` • ${product.brand}`
+        : "") +
+      (product.flavor
+        ? ` • ${product.flavor}`
+        : "") +
+      (product.volume
+        ? ` • ${product.volume}`
+        : ""),
+
+    quantity: qtd,
+
+    salePrice: product.salePrice,
+
+    purchasePrice: product.purchasePrice,
+
+    total: product.salePrice * qtd
+  }
+])
 
     }
 
@@ -230,9 +247,8 @@ function deleteSale(id:number){
       products: cart,
 
       product: cart
-        .map((item)=>item.name)
-        .join(", "),
-
+  .map((item)=>item.displayName || item.name)
+  .join(", "),
       quantity: cart.reduce(
         (total,item)=> total + item.quantity,
         0
@@ -430,6 +446,9 @@ function deleteSale(id:number){
                 value={product.id}
               >
                 {product.name}
+{product.brand && ` • ${product.brand}`}
+{product.flavor && ` • ${product.flavor}`}
+{product.volume && ` • ${product.volume}`}
               </option>
 
             ))}
