@@ -13,6 +13,11 @@ function Configuracoes() {
 
   const [flavor, setFlavor] = useState("")
   const [flavorCategory, setFlavorCategory] = useState("")
+  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+
+const [editingBrand, setEditingBrand] = useState<number | null>(null)
+
+const [editingFlavor, setEditingFlavor] = useState<number | null>(null)
 
 
   useEffect(() => {
@@ -207,7 +212,126 @@ function Configuracoes() {
     saveCategories(updated)
 
   }
+function editCategory(item:string){
 
+  setCategory(item)
+
+  setEditingCategory(item)
+
+}
+
+
+function saveEditCategory(){
+
+  if(!category.trim())
+    return
+
+
+  const updated =
+    categories.map(
+      item =>
+        item === editingCategory
+        ? category
+        : item
+    )
+
+
+  saveCategories(updated)
+
+  setCategory("")
+  setEditingCategory(null)
+
+}
+
+
+
+function editBrand(item:any){
+
+  setBrand(item.name)
+
+  setBrandCategory(item.category)
+
+  setEditingBrand(item.id)
+
+}
+
+
+
+function saveEditBrand(){
+
+  const updated =
+    brands.map(
+      item =>
+        item.id === editingBrand
+        ?
+        {
+          ...item,
+          name: brand,
+          category: brandCategory
+        }
+        :
+        item
+    )
+
+
+  setBrands(updated)
+
+  localStorage.setItem(
+    "brands",
+    JSON.stringify(updated)
+  )
+
+
+  setBrand("")
+  setBrandCategory("")
+  setEditingBrand(null)
+
+}
+
+
+
+function editFlavor(item:any){
+
+  setFlavor(item.name)
+
+  setFlavorCategory(item.category)
+
+  setEditingFlavor(item.id)
+
+}
+
+
+
+function saveEditFlavor(){
+
+  const updated =
+    flavors.map(
+      item =>
+        item.id === editingFlavor
+        ?
+        {
+          ...item,
+          name: flavor,
+          category: flavorCategory
+        }
+        :
+        item
+    )
+
+
+  setFlavors(updated)
+
+  localStorage.setItem(
+    "flavors",
+    JSON.stringify(updated)
+  )
+
+
+  setFlavor("")
+  setFlavorCategory("")
+  setEditingFlavor(null)
+
+}
 
 
 return (
@@ -256,13 +380,19 @@ onChange={(e)=>setCategory(e.target.value)}
 
 <button
 
-onClick={addCategory}
+onClick={
+editingCategory
+? saveEditCategory
+: addCategory
+}
 
 className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
 
 >
 
-Adicionar
+{editingCategory
+? "Salvar edição"
+: "Adicionar"}
 
 </button>
 
@@ -274,18 +404,32 @@ Adicionar
 
 {categories.map((item)=>(
 
-
 <div
 
 key={item}
 
-className="flex justify-between border-b py-2"
+className="flex justify-between items-center border-b py-2"
 
 >
 
-
+<span>
 {item}
+</span>
 
+
+<div className="flex gap-3">
+
+<button
+
+onClick={()=>editCategory(item)}
+
+className="text-blue-600"
+
+>
+
+Editar
+
+</button>
 
 
 <button
@@ -301,11 +445,15 @@ Excluir
 </button>
 
 
-
 </div>
 
 
+</div>
+
 ))}
+
+
+
 
 
 </div>
@@ -389,13 +537,19 @@ value={cat}
 
 <button
 
-onClick={addBrand}
+onClick={
+  editingBrand
+  ? saveEditBrand
+  : addBrand
+}
 
 className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
 
 >
 
-Adicionar marca
+{editingBrand
+? "Salvar edição"
+: "Adicionar marca"}
 
 </button>
 
@@ -407,46 +561,52 @@ Adicionar marca
 
 {brands.map((item)=>(
 
-
 <div
 
 key={item.id}
 
-className="border-b py-2 flex justify-between"
+className="flex justify-between items-center border-b py-2"
 
 >
 
-
 <span>
-
-{item.name}
-
-<br/>
-
-<small className="text-gray-500">
-{item.category}
-</small>
-
+  {item.name}
 </span>
 
 
+<div className="flex gap-3">
 
-<button
+  <button
 
-onClick={()=>deleteBrand(item.id)}
+    onClick={()=>editBrand(item)}
 
-className="text-red-600"
+    className="text-blue-600"
 
->
+  >
 
-Excluir
+    Editar
 
-</button>
+  </button>
 
+
+
+  <button
+
+    onClick={()=>deleteBrand(item.id)}
+
+    className="text-red-600"
+
+  >
+
+    Excluir
+
+  </button>
 
 
 </div>
 
+
+</div>
 
 ))}
 
@@ -553,31 +713,41 @@ Adicionar sabor
 
 {flavors.map((item)=>(
 
-
 <div
 
 key={item.id}
 
-className="border-b py-2 flex justify-between"
+className="flex justify-between items-center border-b py-2"
 
 >
 
+<div>
 
 <span>
-
 {item.name}
-
-<br/>
-
-<small className="text-gray-500">
-
-{item.category}
-
-</small>
-
 </span>
 
+<p className="text-sm text-gray-500">
+{item.category}
+</p>
 
+</div>
+
+
+<div className="flex gap-3">
+
+
+<button
+
+onClick={()=>editFlavor(item)}
+
+className="text-blue-600"
+
+>
+
+Editar
+
+</button>
 
 
 
@@ -594,9 +764,10 @@ Excluir
 </button>
 
 
-
 </div>
 
+
+</div>
 
 ))}
 
@@ -613,7 +784,7 @@ Excluir
 
 </div>
 
-
+<Backup />
 </div>
 
 )
@@ -622,3 +793,4 @@ Excluir
 
 
 export default Configuracoes
+import Backup from "../components/backup/Backup"

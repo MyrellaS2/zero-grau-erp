@@ -12,6 +12,7 @@ const [productSearch, setProductSearch] = useState("")
 
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
+  const [discount, setDiscount] = useState("")
 
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
@@ -150,9 +151,12 @@ const [productSearch, setProductSearch] = useState("")
 
 
   const cartTotal = cart.reduce(
-    (total,item)=> total + item.total,
-    0
-  )
+(total,item)=> total + item.total,
+0
+)
+
+const finalTotal =
+cartTotal - Number(discount || 0)
 
 
 
@@ -268,7 +272,7 @@ function deleteSale(id:number){
         0
       ),
 
-      total: cartTotal,
+      total: finalTotal,
 
       profit: cartProfit,
 
@@ -343,6 +347,7 @@ function deleteSale(id:number){
     setCart([])
     setCustomer("")
     setPayment("")
+    setDiscount("")
 
 
 
@@ -589,9 +594,31 @@ function deleteSale(id:number){
           <div className="border-t mt-5 pt-4">
 
 
-            <p className="font-bold text-lg">
-              Total: R$ {cartTotal.toFixed(2)}
-            </p>
+            <input
+
+className="border p-2 rounded w-full mt-4"
+
+type="number"
+
+placeholder="Desconto (R$)"
+
+value={discount}
+
+onChange={(e)=>
+  setDiscount(e.target.value)
+}
+
+/>
+
+
+<p className="font-bold text-lg mt-3">
+  Subtotal: R$ {cartTotal.toFixed(2)}
+</p>
+
+
+<p className="font-bold text-xl text-blue-800">
+  Total: R$ {finalTotal.toFixed(2)}
+</p>
 
 
             <p className="text-green-600">

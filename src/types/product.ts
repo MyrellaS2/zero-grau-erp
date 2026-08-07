@@ -1,17 +1,4 @@
-export interface Brand {
-  name: string
-  category: string
-}
-
-
-export interface Flavor {
-  name: string
-  category: string
-}
-
-
 export interface Product {
-
   id: number
 
   name: string
@@ -24,28 +11,49 @@ export interface Product {
 
   volume: string
 
-
   entryType: "Unidade" | "Fardo"
-
 
   quantity: string
 
   itemsPerPackage: string
 
-
   stock: number
-
 
   purchasePrice: number
 
   salePrice: number
-
 }
 
+export interface Brand {
+  name: string
+  category: string
+}
 
+export interface Flavor {
+  name: string
+  category: string
+}
 
+export interface StockMovement {
+  id: number
+
+  productId: number
+
+  productName: string
+
+  type: "Entrada" | "Saída" | "Ajuste"
+
+  quantity: number
+
+  previousStock: number
+
+  currentStock: number
+
+  date: string
+
+  observation?: string
+}
 export const products: Product[] = [
-
   {
     id: 1,
 
@@ -70,7 +78,6 @@ export const products: Product[] = [
     purchasePrice: 4.50,
 
     salePrice: 6.00
-
   },
 
 
@@ -98,7 +105,5 @@ export const products: Product[] = [
     purchasePrice: 8.00,
 
     salePrice: 15.00
-
   }
-
 ]
