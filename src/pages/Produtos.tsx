@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { supabase } from "../lib/supabase"
 
 import {
   products as initialProducts
@@ -52,72 +53,75 @@ useState<Flavor[]>([])
 
 useEffect(() => {
 
-  const savedProducts =
-    localStorage.getItem("products")
-    const savedCategories =
-  localStorage.getItem("categories")
+async function loadData(){
 
-  const savedBrands =
-    localStorage.getItem("brands")
-
-  const savedFlavors =
-    localStorage.getItem("flavors")
-    const savedMovements =
-localStorage.getItem("stockMovements")
+  const { data: productsData } =
+    await supabase
+      .from("products")
+      .select("*")
 
 
+  const { data: categoriesData } =
+    await supabase
+      .from("categories")
+      .select("*")
 
-  if(savedProducts){
+
+  const { data: brandsData } =
+    await supabase
+      .from("brands")
+      .select("*")
+
+
+  const { data: flavorsData } =
+    await supabase
+      .from("flavors")
+      .select("*")
+
+
+
+  if(productsData){
 
     setProducts(
-      JSON.parse(savedProducts)
-    )
-
-  }else{
-
-    setProducts(initialProducts)
-
-    localStorage.setItem(
-      "products",
-      JSON.stringify(initialProducts)
+      productsData as Product[]
     )
 
   }
 
 
+  if(categoriesData){
 
-  if(savedBrands){
+    setCategories(
+      categoriesData.map(
+        item => item.name
+      )
+    )
+
+  }
+
+
+  if(brandsData){
 
     setBrands(
-      JSON.parse(savedBrands)
+      brandsData as Brand[]
     )
 
   }
 
 
-
-  if(savedFlavors){
+  if(flavorsData){
 
     setFlavors(
-      JSON.parse(savedFlavors)
+      flavorsData as Flavor[]
     )
 
   }
-  if(savedCategories){
 
-  setCategories(
-    JSON.parse(savedCategories)
-  )
-
-}
-if(savedMovements){
-
-  setStockMovements(
-    JSON.parse(savedMovements)
-  )
 
 }
 
+
+loadData()
 
 }, [])
 

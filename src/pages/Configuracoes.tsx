@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { supabase } from "../lib/supabase"
 
 function Configuracoes() {
 
@@ -20,38 +21,34 @@ const [editingBrand, setEditingBrand] = useState<number | null>(null)
 const [editingFlavor, setEditingFlavor] = useState<number | null>(null)
 
 
-  useEffect(() => {
+ useEffect(() => {
 
-    const savedCategories =
-      localStorage.getItem("categories")
+  async function loadData(){
 
-    const savedBrands =
-      localStorage.getItem("brands")
-
-    const savedFlavors =
-      localStorage.getItem("flavors")
+    const { data: categoriesData, error } =
+      await supabase
+        .from("categories")
+        .select("*")
 
 
-    if(savedCategories){
-      setCategories(JSON.parse(savedCategories))
+    if(error){
+      console.log(error)
+      return
     }
 
 
-    if(savedBrands){
+    setCategories(
+      categoriesData.map(
+        (item) => item.name
+      )
+    )
 
-      setBrands(JSON.parse(savedBrands))
-
-    }
-
-
-    if(savedFlavors){
-
-      setFlavors(JSON.parse(savedFlavors))
-
-    }
+  }
 
 
-  }, [])
+  loadData()
+
+}, [])
 
 
 
