@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 
-import {
-  products as initialProducts
-} from "../types/product"
 
 import type {
 Product,
@@ -93,16 +90,19 @@ if(movementsError){
 
 }else if(movementsData){
 
-  setStockMovements(
-    movementsData.map((item:any) => ({
-      id: item.id,
-      productId: item.product_id,
-      productName: item.product_name,
-      type: item.type,
-      quantity: item.quantity,
-      date: item.date
-    }))
-  )
+ setStockMovements(
+  movementsData.map((item: any) => ({
+    id: item.id,
+    productId: item.product_id,
+    productName: item.product_name,
+    type: item.type,
+    quantity: Number(item.quantity || 0),
+    previousStock: Number(item.previous_stock || 0),
+    currentStock: Number(item.current_stock || 0),
+    date: item.date,
+    observation: item.observation || ""
+  }))
+)
 
 }
 
@@ -367,13 +367,15 @@ async function addStock(
   const { data: movementData, error: movementError } =
     await supabase
       .from("stock_movements")
-      .insert({
-        product_id: product.id,
-        product_name: product.name,
-        type: type,
-        quantity: quantity,
-        date: new Date().toISOString()
-      })
+     .insert({
+  product_id: product.id,
+  product_name: product.name,
+  type: type,
+  quantity: quantity,
+  previous_stock: previousStock,
+  current_stock: currentStock,
+  date: new Date().toISOString()
+})
       .select()
 
 

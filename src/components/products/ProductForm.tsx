@@ -329,7 +329,7 @@ setFlavor("")
           {brands.map((item)=>(
 
   <option
-    key={item.id}
+    key={item.name}
     value={item.name}
   >
     {item.name}
