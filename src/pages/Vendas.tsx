@@ -762,35 +762,44 @@ function Vendas() {
       }
     )
 
-  const periodTotal =
-    filteredSales.reduce(
-      (total, sale) =>
-        total +
-        Number(
-          sale.total || 0
-        ),
-      0
-    )
+ 
+const paidSales =
+  filteredSales.filter(
+    (sale) =>
+      sale.status === "Pago"
+  )
 
-  const periodProfit =
-    filteredSales.reduce(
-      (total, sale) =>
-        total +
-        Number(
-          sale.profit || 0
-        ),
-      0
-    )
+const periodTotal =
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(
+        sale.total || 0
+      ),
+    0
+  )
 
-  const periodQuantity =
-    filteredSales.reduce(
-      (total, sale) =>
-        total +
-        Number(
-          sale.quantity || 0
-        ),
-      0
-    )
+const periodProfit =
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(
+        sale.profit || 0
+      ),
+    0
+  )
+
+const periodQuantity =
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(
+        sale.quantity || 0
+      ),
+    0
+  )
+
+
 
   return (
     <div>

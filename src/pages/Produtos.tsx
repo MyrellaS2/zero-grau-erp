@@ -43,6 +43,8 @@ useState<Brand[]>([])
 
 const [flavors, setFlavors] =
 useState<Flavor[]>([])
+const [search, setSearch] = useState("")
+const [categoryFilter, setCategoryFilter] = useState("")
 
 
   
@@ -427,7 +429,22 @@ useEffect(() => {
   console.log("BRANDS ATUALIZADAS:", brands)
   console.log("SABORES ATUALIZADOS:", flavors)
 }, [categories, brands, flavors])
+const filteredProducts = products.filter((product) => {
 
+  const searchText = search.toLowerCase().trim()
+
+  const matchesSearch =
+    !searchText ||
+    product.name.toLowerCase().includes(searchText) ||
+    product.brand.toLowerCase().includes(searchText) ||
+    product.flavor.toLowerCase().includes(searchText)
+
+  const matchesCategory =
+    !categoryFilter ||
+    product.category === categoryFilter
+
+  return matchesSearch && matchesCategory
+})
   return (
 
     <div>
@@ -446,7 +463,63 @@ useEffect(() => {
         Cadastro e controle de estoque ZERO GRAU
 
       </p>
+<div className="mt-6 bg-white p-4 rounded-xl shadow">
 
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+    <input
+      type="text"
+      placeholder="Pesquisar produto, marca ou sabor..."
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      className="
+        border
+        rounded-lg
+        px-4
+        py-2
+        outline-none
+        focus:ring-2
+        focus:ring-blue-600
+      "
+    />
+
+    <select
+      value={categoryFilter}
+      onChange={(e) => setCategoryFilter(e.target.value)}
+      className="
+        border
+        rounded-lg
+        px-4
+        py-2
+        bg-white
+        outline-none
+        focus:ring-2
+        focus:ring-blue-600
+      "
+    >
+
+      <option value="">
+        Todas as categorias
+      </option>
+
+      {categories.map((category) => (
+        <option
+          key={category}
+          value={category}
+        >
+          {category}
+        </option>
+      ))}
+
+    </select>
+
+  </div>
+
+  <p className="text-sm text-gray-500 mt-3">
+    Mostrando {filteredProducts.length} de {products.length} produtos
+  </p>
+
+</div>
 
 
 
@@ -494,7 +567,7 @@ useEffect(() => {
 
           <ProductList
 
-            products={products}
+  products={filteredProducts}
 
             onEdit={
               setEditingProduct
