@@ -65,6 +65,7 @@ async function loadData(){
     await supabase
       .from("categories")
       .select("*")
+      console.log("DADOS CATEGORIAS RAW:", categoriesData)
 
 
   const { data: brandsData } =
@@ -77,14 +78,47 @@ async function loadData(){
     await supabase
       .from("flavors")
       .select("*")
+      const { data: movementsData, error: movementsError } =
+  await supabase
+    .from("stock_movements")
+    .select("*")
+    .order("date", { ascending: false })
+
+if(movementsError){
+
+  console.error(
+    "ERRO AO CARREGAR MOVIMENTAÇÕES:",
+    movementsError
+  )
+
+}else if(movementsData){
+
+  setStockMovements(
+    movementsData.map((item:any) => ({
+      id: item.id,
+      productId: item.product_id,
+      productName: item.product_name,
+      type: item.type,
+      quantity: item.quantity,
+      date: item.date
+    }))
+  )
+
+}
 
 
 
   if(productsData){
 
-    setProducts(
-      productsData as Product[]
-    )
+   setProducts(
+  productsData.map(item => ({
+    ...item,
+    purchasePrice: item.purchase_price,
+    salePrice: item.sale_price,
+    entryType: item.entry_type,
+    itemsPerPackage: item.items_per_package
+  })) as Product[]
+)
 
   }
 
@@ -102,11 +136,19 @@ async function loadData(){
 
   if(brandsData){
 
-    setBrands(
-      brandsData as Brand[]
-    )
+  console.log("BRANDS DO SUPABASE:", brandsData)
 
-  }
+  setBrands(
+    brandsData as Brand[]
+  )
+
+}else{
+
+  console.log("NÃO VEIO MARCA")
+
+}
+
+  console.log("MARCAS RECEBIDAS:", brandsData)
 
 
   if(flavorsData){
@@ -128,126 +170,151 @@ loadData()
 
 
 
-  function saveProduct(product:Product){
+  async function saveProduct(product: Product){
+
+  const productData = {
+    name: product.name,
+    category: product.category,
+    brand: product.brand,
+    flavor: product.flavor,
+    volume: product.volume,
+    entry_type: product.entryType,
+    quantity: Number(product.quantity),
+    items_per_package: Number(product.itemsPerPackage),
+    stock: product.stock,
+    purchase_price: product.purchasePrice,
+    sale_price: product.salePrice
+  }
 
 
-    let updatedProducts:Product[]
+  if(product.id && editingProduct){
+
+    const { error } = await supabase
+      .from("products")
+      .update(productData)
+      .eq("id", product.id)
 
 
-
-    const exists =
-      products.some(
-        item =>
-          item.id === product.id
-      )
-
-
-
-    if(exists){
-
-
-      updatedProducts =
-        products.map(
-          item =>
-            item.id === product.id
-            ? product
-            : item
-        )
-
-
-    }else{
-
-
-      updatedProducts = [
-        ...products,
-        product
-      ]
-
-
+    if(error){
+      console.log(error)
+      alert("Erro ao atualizar produto")
+      return
     }
 
 
+  }else{
+
+
+    const { data, error } = await supabase
+      .from("products")
+      .insert(productData)
+      .select()
+
+
+    if(error){
+      console.log(error)
+      alert("Erro ao salvar produto")
+      return
+    }
+
+
+   if(data){
+
+  const newProduct = {
+    ...data[0],
+
+    purchasePrice:
+      data[0].purchase_price,
+
+    salePrice:
+      data[0].sale_price,
+
+    entryType:
+      data[0].entry_type,
+
+    itemsPerPackage:
+      data[0].items_per_package
+
+  }
+
+
+  setProducts([
+    ...products,
+    newProduct as Product
+  ])
+
+}
+
+  }
+
+
+  alert("Produto salvo!")
+
+  setEditingProduct(null)
+
+}
+
+
+
+function deleteProduct(id:number){
+
+  const confirmDelete =
+    window.confirm(
+      "Excluir esse produto?"
+    )
+
+  if(!confirmDelete)
+    return
+
+
+  async function remove(){
+
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id)
+
+
+    if(error){
+      console.log(error)
+      alert("Erro ao excluir")
+      return
+    }
+
 
     setProducts(
-      updatedProducts
-    )
-
-
-    localStorage.setItem(
-      "products",
-      JSON.stringify(updatedProducts)
-    )
-
-
-    setEditingProduct(null)
-
-
-  }
-
-
-
-
-
-  function deleteProduct(id:number){
-
-
-    const confirmDelete =
-      window.confirm(
-        "Excluir esse produto?"
-      )
-
-
-    if(!confirmDelete)
-      return
-
-
-
-    const updated =
       products.filter(
-        item =>
-          item.id !== id
+        item => item.id !== id
       )
-
-
-
-    setProducts(updated)
-
-
-    localStorage.setItem(
-      "products",
-      JSON.stringify(updated)
     )
-
 
   }
 
 
+  remove()
+
+}
 
 
-
-  function addStock(
-  id:number,
-  quantity:number,
-  type:"Entrada" | "Saída"
+async function addStock(
+  id: number,
+  quantity: number,
+  type: "Entrada" | "Saída"
 ){
 
-  const product =
-    products.find(
-      item => item.id === id
-    )
-
+  const product = products.find(
+    item => item.id === id
+  )
 
   if(!product)
     return
 
 
-
   const previousStock =
-    product.stock
+    Number(product.stock)
 
 
-
-  let currentStock:number
+  let currentStock: number
 
 
   if(type === "Entrada"){
@@ -257,16 +324,13 @@ loadData()
 
   }else{
 
-
     currentStock =
       previousStock - quantity
 
 
     if(currentStock < 0){
 
-      alert(
-        "Estoque insuficiente"
-      )
+      alert("Estoque insuficiente")
 
       return
 
@@ -275,100 +339,92 @@ loadData()
   }
 
 
+  // Atualiza o estoque no Supabase
+  const { error: productError } =
+    await supabase
+      .from("products")
+      .update({
+        stock: currentStock
+      })
+      .eq("id", id)
 
-  const updatedProducts =
-    products.map(
-      item =>
 
-        item.id === id
+  if(productError){
 
-        ?
-
-        {
-          ...item,
-
-          stock: currentStock
-
-        }
-
-        :
-
-        item
+    console.error(
+      "ERRO AO ATUALIZAR ESTOQUE:",
+      productError
     )
 
+    alert("Erro ao atualizar estoque")
 
-
-  const movement: StockMovement = {
-
-    id: Date.now(),
-
-    productId: product.id,
-
-    productName: product.name,
-
-    type,
-
-    quantity,
-
-    previousStock,
-
-    currentStock,
-
-    date:
-      new Date()
-      .toLocaleString(),
-
-    observation:
-      type === "Entrada"
-
-      ?
-
-      "Entrada de estoque"
-
-      :
-
-      "Saída de estoque"
+    return
 
   }
 
 
-
-  const updatedMovements = [
-
-    ...stockMovements,
-
-    movement
-
-  ]
-
-
-
-  setProducts(
-    updatedProducts
-  )
+  // Salva a movimentação no Supabase
+  const { data: movementData, error: movementError } =
+    await supabase
+      .from("stock_movements")
+      .insert({
+        product_id: product.id,
+        product_name: product.name,
+        type: type,
+        quantity: quantity,
+        date: new Date().toISOString()
+      })
+      .select()
 
 
-  setStockMovements(
-    updatedMovements
-  )
+  if(movementError){
+
+    console.error(
+      "ERRO AO SALVAR MOVIMENTAÇÃO:",
+      movementError
+    )
+
+    alert("Estoque atualizado, mas houve erro ao salvar o histórico")
+
+  }
 
 
+  // Atualiza o produto na tela
+  const updatedProducts =
+    products.map(item =>
+      item.id === id
+        ? {
+            ...item,
+            stock: currentStock
+          }
+        : item
+    )
 
-  localStorage.setItem(
-    "products",
-    JSON.stringify(updatedProducts)
-  )
+
+  setProducts(updatedProducts)
 
 
-  localStorage.setItem(
-    "stockMovements",
-    JSON.stringify(updatedMovements)
-  )
+  // Atualiza o histórico na tela
+  if(movementData){
+
+    const movement =
+      movementData[0] as StockMovement
+
+    setStockMovements([
+      ...stockMovements,
+      movement
+    ])
+
+  }
 
 }
 
 
-
+useEffect(() => {
+  console.log("CATEGORIAS ATUALIZADAS:", categories)
+  console.log("BRANDS ATUALIZADAS:", brands)
+  console.log("SABORES ATUALIZADOS:", flavors)
+}, [categories, brands, flavors])
 
   return (
 
@@ -402,21 +458,27 @@ loadData()
 
           <ProductForm
 
-            categories={categories}
+  key={
+    categories.length +
+    brands.length +
+    flavors.length
+  }
 
-            brands={brands}
+  categories={categories}
 
-            flavors={flavors}
+  brands={brands}
 
-            product={editingProduct}
+  flavors={flavors}
 
-            onSave={saveProduct}
+  product={editingProduct}
 
-            onCancel={()=>
-              setEditingProduct(null)
-            }
+  onSave={saveProduct}
 
-          />
+  onCancel={()=>
+    setEditingProduct(null)
+  }
+
+/>
 
 
         </div>

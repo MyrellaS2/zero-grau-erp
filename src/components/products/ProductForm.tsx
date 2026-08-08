@@ -25,6 +25,7 @@ interface ProductFormProps {
 
 
 function ProductForm({
+  
 
   categories,
 
@@ -39,6 +40,7 @@ function ProductForm({
   onCancel
 
 }: ProductFormProps) {
+  
 
 
   const [name, setName] = useState("")
@@ -285,21 +287,16 @@ setFlavor("")
           </option>
 
 
-          {categories.map((item)=>(
+         {categories.map((item)=>(
 
-            <option
+  <option
+    key={item}
+    value={item}
+  >
+    {item}
+  </option>
 
-              key={item}
-
-              value={item}
-
-            >
-
-              {item}
-
-            </option>
-
-          ))}
+))}
 
 
         </select>
@@ -329,30 +326,18 @@ setFlavor("")
 </option>
 
 
-          {brands
+          {brands.map((item)=>(
 
-            .filter(
-              (item)=>
-                item.category === category
-            )
+  <option
+    key={item.id}
+    value={item.name}
+  >
+    {item.name}
+  </option>
 
-            .map((item)=>(
+))}
 
-              <option
-
-                key={item.name}
-
-                value={item.name}
-
-              >
-
-                {item.name}
-
-              </option>
-
-            ))
-
-          }
+          
 
 
         </select>

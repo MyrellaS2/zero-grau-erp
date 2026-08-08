@@ -1,793 +1,872 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import Backup from "../components/backup/Backup"
+
+interface Brand {
+id: number
+name: string
+category: string
+}
+
+interface Flavor {
+id: number
+name: string
+category: string
+}
 
 function Configuracoes() {
+const [categories, setCategories] = useState<string[]>([])
+const [brands, setBrands] = useState<Brand[]>([])
+const [flavors, setFlavors] = useState<Flavor[]>([])
 
-  const [categories, setCategories] = useState<string[]>([])
-  const [brands, setBrands] = useState<any[]>([])
-  const [flavors, setFlavors] = useState<any[]>([])
+const [category, setCategory] = useState("")
+const [brand, setBrand] = useState("")
+const [brandCategory, setBrandCategory] = useState("")
+const [flavor, setFlavor] = useState("")
+const [flavorCategory, setFlavorCategory] = useState("")
 
-  const [category, setCategory] = useState("")
+const [editingCategory, setEditingCategory] =
+useState<string | null>(null)
 
-  const [brand, setBrand] = useState("")
-  const [brandCategory, setBrandCategory] = useState("")
+const [editingBrand, setEditingBrand] =
+useState<number | null>(null)
 
-  const [flavor, setFlavor] = useState("")
-  const [flavorCategory, setFlavorCategory] = useState("")
-  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+const [editingFlavor, setEditingFlavor] =
+useState<number | null>(null)
 
-const [editingBrand, setEditingBrand] = useState<number | null>(null)
-
-const [editingFlavor, setEditingFlavor] = useState<number | null>(null)
-
-
- useEffect(() => {
-
-  async function loadData(){
-
-    const { data: categoriesData, error } =
-      await supabase
-        .from("categories")
-        .select("*")
-
-
-    if(error){
-      console.log(error)
-      return
-    }
+useEffect(() => {
+async function loadData() {
+const [
+categoriesResult,
+brandsResult,
+flavorsResult,
+] = await Promise.all([
+supabase
+.from("categories")
+.select("*")
+.order("name"),
 
 
+    supabase
+      .from("brands")
+      .select("*")
+      .order("name"),
+
+    supabase
+      .from("flavors")
+      .select("*")
+      .order("name"),
+  ])
+
+  if (categoriesResult.error) {
+    console.error(
+      "ERRO AO CARREGAR CATEGORIAS:",
+      categoriesResult.error
+    )
+  } else {
     setCategories(
-      categoriesData.map(
-        (item) => item.name
+      (categoriesResult.data || []).map(
+        (item: any) => item.name
       )
     )
-
   }
 
+  if (brandsResult.error) {
+    console.error(
+      "ERRO AO CARREGAR MARCAS:",
+      brandsResult.error
+    )
+  } else {
+    setBrands(
+      (brandsResult.data || []).map(
+        (item: any) => ({
+          id: Number(item.id),
+          name: item.name,
+          category: item.category,
+        })
+      )
+    )
+  }
 
-  loadData()
+  if (flavorsResult.error) {
+    console.error(
+      "ERRO AO CARREGAR SABORES:",
+      flavorsResult.error
+    )
+  } else {
+    setFlavors(
+      (flavorsResult.data || []).map(
+        (item: any) => ({
+          id: Number(item.id),
+          name: item.name,
+          category: item.category,
+        })
+      )
+    )
+  }
+}
+
+loadData()
+
 
 }, [])
 
+async function addCategory() {
+const name = category.trim()
 
 
-  function saveCategories(updated:string[]){
-
-    setCategories(updated)
-
-    localStorage.setItem(
-      "categories",
-      JSON.stringify(updated)
-    )
-
-  }
-
-
-
-  function addCategory(){
-
-    if(!category.trim()) return
-
-
-    saveCategories([
-      ...categories,
-      category
-    ])
-
-
-    setCategory("")
-
-  }
-
-
-
-  function addBrand(){
-
-    if(!brand.trim() || !brandCategory){
-
-      alert("Informe marca e categoria")
-      return
-
-    }
-
-
-    const updated = [
-
-      ...brands,
-
-      {
-        id: Date.now(),
-        name: brand,
-        category: brandCategory
-      }
-
-    ]
-
-
-    setBrands(updated)
-
-
-    localStorage.setItem(
-      "brands",
-      JSON.stringify(updated)
-    )
-
-
-    setBrand("")
-    setBrandCategory("")
-
-  }
-
-
-
-  function addFlavor(){
-
-    if(!flavor.trim() || !flavorCategory){
-
-      alert("Informe sabor e categoria")
-      return
-
-    }
-
-
-    const updated = [
-
-  ...flavors,
-
-  {
-    id: Date.now(),
-    name: flavor,
-    category: flavorCategory
-  }
-
-]
-
-
-    setFlavors(updated)
-
-
-    localStorage.setItem(
-      "flavors",
-      JSON.stringify(updated)
-    )
-
-
-    setFlavor("")
-    setFlavorCategory("")
-
-  }
-  
-  function deleteBrand(id:number){
-
-    const updated =
-      brands.filter(
-        (item)=>item.id !== id
-      )
-
-
-    setBrands(updated)
-
-
-    localStorage.setItem(
-      "brands",
-      JSON.stringify(updated)
-    )
-
-  }
-
-
-
-  function deleteFlavor(id:number){
-
-    const updated =
-      flavors.filter(
-        (item)=>item.id !== id
-      )
-
-
-    setFlavors(updated)
-
-
-    localStorage.setItem(
-      "flavors",
-      JSON.stringify(updated)
-    )
-
-  }
-
-
-
-  function deleteCategory(item:string){
-
-    const updated =
-      categories.filter(
-        (cat)=>cat !== item
-      )
-
-
-    saveCategories(updated)
-
-  }
-function editCategory(item:string){
-
-  setCategory(item)
-
-  setEditingCategory(item)
-
+if (!name) {
+  alert("Informe o nome da categoria.")
+  return
 }
 
-
-function saveEditCategory(){
-
-  if(!category.trim())
-    return
-
-
-  const updated =
-    categories.map(
-      item =>
-        item === editingCategory
-        ? category
-        : item
-    )
-
-
-  saveCategories(updated)
-
-  setCategory("")
-  setEditingCategory(null)
-
-}
-
-
-
-function editBrand(item:any){
-
-  setBrand(item.name)
-
-  setBrandCategory(item.category)
-
-  setEditingBrand(item.id)
-
-}
-
-
-
-function saveEditBrand(){
-
-  const updated =
-    brands.map(
-      item =>
-        item.id === editingBrand
-        ?
-        {
-          ...item,
-          name: brand,
-          category: brandCategory
-        }
-        :
-        item
-    )
-
-
-  setBrands(updated)
-
-  localStorage.setItem(
-    "brands",
-    JSON.stringify(updated)
-  )
-
-
-  setBrand("")
-  setBrandCategory("")
-  setEditingBrand(null)
-
-}
-
-
-
-function editFlavor(item:any){
-
-  setFlavor(item.name)
-
-  setFlavorCategory(item.category)
-
-  setEditingFlavor(item.id)
-
-}
-
-
-
-function saveEditFlavor(){
-
-  const updated =
-    flavors.map(
-      item =>
-        item.id === editingFlavor
-        ?
-        {
-          ...item,
-          name: flavor,
-          category: flavorCategory
-        }
-        :
-        item
-    )
-
-
-  setFlavors(updated)
-
-  localStorage.setItem(
-    "flavors",
-    JSON.stringify(updated)
-  )
-
-
-  setFlavor("")
-  setFlavorCategory("")
-  setEditingFlavor(null)
-
-}
-
-
-return (
-
-<div>
-
-
-<h1 className="text-3xl font-bold">
-⚙️ Configurações
-</h1>
-
-
-<p className="mt-2 text-gray-500">
-Cadastros auxiliares da ZERO GRAU
-</p>
-
-
-
-<div className="grid grid-cols-2 gap-6 mt-8">
-
-
-
-
-
-<div className="bg-white p-6 rounded-xl shadow">
-
-
-<h2 className="font-bold text-lg">
-📦 Categorias
-</h2>
-
-
-<input
-
-className="border p-2 rounded w-full mt-3"
-
-placeholder="Ex: Cerveja"
-
-value={category}
-
-onChange={(e)=>setCategory(e.target.value)}
-
-/>
-
-
-
-<button
-
-onClick={
-editingCategory
-? saveEditCategory
-: addCategory
-}
-
-className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
-
->
-
-{editingCategory
-? "Salvar edição"
-: "Adicionar"}
-
-</button>
-
-
-
-
-<div className="mt-4">
-
-
-{categories.map((item)=>(
-
-<div
-
-key={item}
-
-className="flex justify-between items-center border-b py-2"
-
->
-
-<span>
-{item}
-</span>
-
-
-<div className="flex gap-3">
-
-<button
-
-onClick={()=>editCategory(item)}
-
-className="text-blue-600"
-
->
-
-Editar
-
-</button>
-
-
-<button
-
-onClick={()=>deleteCategory(item)}
-
-className="text-red-600"
-
->
-
-Excluir
-
-</button>
-
-
-</div>
-
-
-</div>
-
-))}
-
-
-
-
-
-</div>
-
-
-</div>
-
-
-
-
-
-
-
-<div className="bg-white p-6 rounded-xl shadow">
-
-
-<h2 className="font-bold text-lg">
-🏷️ Marcas por categoria
-</h2>
-
-
-
-
-<input
-
-className="border p-2 rounded w-full mt-3"
-
-placeholder="Marca"
-
-value={brand}
-
-onChange={(e)=>setBrand(e.target.value)}
-
-/>
-
-
-
-
-
-<select
-
-className="border p-2 rounded w-full mt-3"
-
-value={brandCategory}
-
-onChange={(e)=>setBrandCategory(e.target.value)}
-
->
-
-
-<option value="">
-Categoria
-</option>
-
-
-
-{categories.map((cat)=>(
-
-
-<option
-
-key={cat}
-
-value={cat}
-
->
-
-{cat}
-
-</option>
-
-
-))}
-
-
-</select>
-
-
-
-
-
-<button
-
-onClick={
-  editingBrand
-  ? saveEditBrand
-  : addBrand
-}
-
-className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
-
->
-
-{editingBrand
-? "Salvar edição"
-: "Adicionar marca"}
-
-</button>
-
-
-
-
-<div className="mt-4">
-
-
-{brands.map((item)=>(
-
-<div
-
-key={item.id}
-
-className="flex justify-between items-center border-b py-2"
-
->
-
-<span>
-  {item.name}
-</span>
-
-
-<div className="flex gap-3">
-
-  <button
-
-    onClick={()=>editBrand(item)}
-
-    className="text-blue-600"
-
-  >
-
-    Editar
-
-  </button>
-
-
-
-  <button
-
-    onClick={()=>deleteBrand(item.id)}
-
-    className="text-red-600"
-
-  >
-
-    Excluir
-
-  </button>
-
-
-</div>
-
-
-</div>
-
-))}
-
-
-</div>
-
-
-</div>
-
-
-
-
-<div className="bg-white p-6 rounded-xl shadow">
-
-
-<h2 className="font-bold text-lg">
-🧊 Sabores
-</h2>
-
-
-
-
-<input
-
-className="border p-2 rounded w-full mt-3"
-
-placeholder="Ex: Limão"
-
-value={flavor}
-
-onChange={(e)=>setFlavor(e.target.value)}
-
-/>
-
-
-
-
-
-<select
-
-className="border p-2 rounded w-full mt-3"
-
-value={flavorCategory}
-
-onChange={(e)=>setFlavorCategory(e.target.value)}
-
->
-
-
-<option value="">
-Categoria
-</option>
-
-
-
-
-{categories.map((cat)=>(
-
-
-<option
-
-key={cat}
-
-value={cat}
-
->
-
-{cat}
-
-</option>
-
-
-))}
-
-
-
-</select>
-
-
-
-
-
-
-<button
-
-onClick={addFlavor}
-
-className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
-
->
-
-Adicionar sabor
-
-</button>
-
-
-
-
-
-
-
-<div className="mt-4">
-
-
-{flavors.map((item)=>(
-
-<div
-
-key={item.id}
-
-className="flex justify-between items-center border-b py-2"
-
->
-
-<div>
-
-<span>
-{item.name}
-</span>
-
-<p className="text-sm text-gray-500">
-{item.category}
-</p>
-
-</div>
-
-
-<div className="flex gap-3">
-
-
-<button
-
-onClick={()=>editFlavor(item)}
-
-className="text-blue-600"
-
->
-
-Editar
-
-</button>
-
-
-
-<button
-
-onClick={()=>deleteFlavor(item.id)}
-
-className="text-red-600"
-
->
-
-Excluir
-
-</button>
-
-
-</div>
-
-
-</div>
-
-))}
-
-
-</div>
-
-
-</div>
-
-
-
-
-
-
-</div>
-
-<Backup />
-</div>
-
+const exists = categories.some(
+  (item) =>
+    item.toLowerCase() === name.toLowerCase()
 )
 
+if (exists) {
+  alert("Essa categoria já existe.")
+  return
+}
+
+const { data, error } = await supabase
+  .from("categories")
+  .insert({
+    name,
+  })
+  .select()
+
+if (error) {
+  console.error(
+    "ERRO AO ADICIONAR CATEGORIA:",
+    error
+  )
+  alert("Erro ao adicionar categoria.")
+  return
+}
+
+if (data && data.length > 0) {
+  setCategories([
+    ...categories,
+    data[0].name,
+  ])
+}
+
+setCategory("")
+
+
+}
+
+function editCategory(item: string) {
+setCategory(item)
+setEditingCategory(item)
+}
+
+async function saveEditCategory() {
+if (!category.trim()) {
+alert("Informe o nome da categoria.")
+return
 }
 
 
+if (editingCategory === null) {
+  return
+}
+
+const oldName = editingCategory
+const newName = category.trim()
+
+if (oldName === newName) {
+  setCategory("")
+  setEditingCategory(null)
+  return
+}
+
+const { error } = await supabase
+  .from("categories")
+  .update({
+    name: newName,
+  })
+  .eq("name", oldName)
+
+if (error) {
+  console.error(
+    "ERRO AO EDITAR CATEGORIA:",
+    error
+  )
+  alert("Erro ao editar categoria.")
+  return
+}
+
+setCategories(
+  categories.map((item) =>
+    item === oldName
+      ? newName
+      : item
+  )
+)
+
+setCategory("")
+setEditingCategory(null)
+
+
+}
+
+async function deleteCategory(item: string) {
+const confirmDelete =
+window.confirm(
+`Excluir a categoria "${item}"?`
+)
+
+
+if (!confirmDelete) {
+  return
+}
+
+const { error } = await supabase
+  .from("categories")
+  .delete()
+  .eq("name", item)
+
+if (error) {
+  console.error(
+    "ERRO AO EXCLUIR CATEGORIA:",
+    error
+  )
+  alert("Erro ao excluir categoria.")
+  return
+}
+
+setCategories(
+  categories.filter(
+    (cat) => cat !== item
+  )
+)
+
+if (editingCategory === item) {
+  setEditingCategory(null)
+  setCategory("")
+}
+
+
+}
+
+async function addBrand() {
+const name = brand.trim()
+
+
+if (!name || !brandCategory) {
+  alert(
+    "Informe a marca e a categoria."
+  )
+  return
+}
+
+const exists = brands.some(
+  (item) =>
+    item.name.toLowerCase() ===
+      name.toLowerCase() &&
+    item.category === brandCategory
+)
+
+if (exists) {
+  alert("Essa marca já existe nessa categoria.")
+  return
+}
+
+const { data, error } = await supabase
+  .from("brands")
+  .insert({
+    name,
+    category: brandCategory,
+  })
+  .select()
+
+if (error) {
+  console.error(
+    "ERRO AO ADICIONAR MARCA:",
+    error
+  )
+  alert("Erro ao adicionar marca.")
+  return
+}
+
+if (data && data.length > 0) {
+  setBrands([
+    ...brands,
+    {
+      id: Number(data[0].id),
+      name: data[0].name,
+      category: data[0].category,
+    },
+  ])
+}
+
+setBrand("")
+setBrandCategory("")
+
+
+}
+
+function editBrand(item: Brand) {
+setBrand(item.name)
+setBrandCategory(item.category)
+setEditingBrand(item.id)
+}
+
+async function saveEditBrand() {
+if (
+editingBrand === null ||
+!brand.trim() ||
+!brandCategory
+) {
+alert(
+"Informe a marca e a categoria."
+)
+return
+}
+
+
+const { error } = await supabase
+  .from("brands")
+  .update({
+    name: brand.trim(),
+    category: brandCategory,
+  })
+  .eq("id", editingBrand)
+
+if (error) {
+  console.error(
+    "ERRO AO EDITAR MARCA:",
+    error
+  )
+  alert("Erro ao editar marca.")
+  return
+}
+
+setBrands(
+  brands.map((item) =>
+    item.id === editingBrand
+      ? {
+          ...item,
+          name: brand.trim(),
+          category: brandCategory,
+        }
+      : item
+  )
+)
+
+setBrand("")
+setBrandCategory("")
+setEditingBrand(null)
+
+
+}
+
+async function deleteBrand(id: number) {
+const confirmDelete =
+window.confirm(
+"Excluir essa marca?"
+)
+
+
+if (!confirmDelete) {
+  return
+}
+
+const { error } = await supabase
+  .from("brands")
+  .delete()
+  .eq("id", id)
+
+if (error) {
+  console.error(
+    "ERRO AO EXCLUIR MARCA:",
+    error
+  )
+  alert("Erro ao excluir marca.")
+  return
+}
+
+setBrands(
+  brands.filter(
+    (item) => item.id !== id
+  )
+)
+
+if (editingBrand === id) {
+  setEditingBrand(null)
+  setBrand("")
+  setBrandCategory("")
+}
+
+
+}
+
+async function addFlavor() {
+const name = flavor.trim()
+
+
+if (!name || !flavorCategory) {
+  alert(
+    "Informe o sabor e a categoria."
+  )
+  return
+}
+
+const exists = flavors.some(
+  (item) =>
+    item.name.toLowerCase() ===
+      name.toLowerCase() &&
+    item.category === flavorCategory
+)
+
+if (exists) {
+  alert(
+    "Esse sabor já existe nessa categoria."
+  )
+  return
+}
+
+const { data, error } = await supabase
+  .from("flavors")
+  .insert({
+    name,
+    category: flavorCategory,
+  })
+  .select()
+
+if (error) {
+  console.error(
+    "ERRO AO ADICIONAR SABOR:",
+    error
+  )
+  alert("Erro ao adicionar sabor.")
+  return
+}
+
+if (data && data.length > 0) {
+  setFlavors([
+    ...flavors,
+    {
+      id: Number(data[0].id),
+      name: data[0].name,
+      category: data[0].category,
+    },
+  ])
+}
+
+setFlavor("")
+setFlavorCategory("")
+
+
+}
+
+function editFlavor(item: Flavor) {
+setFlavor(item.name)
+setFlavorCategory(item.category)
+setEditingFlavor(item.id)
+}
+
+async function saveEditFlavor() {
+if (
+editingFlavor === null ||
+!flavor.trim() ||
+!flavorCategory
+) {
+alert(
+"Informe o sabor e a categoria."
+)
+return
+}
+
+const { error } = await supabase
+  .from("flavors")
+  .update({
+    name: flavor.trim(),
+    category: flavorCategory,
+  })
+  .eq("id", editingFlavor)
+
+if (error) {
+  console.error(
+    "ERRO AO EDITAR SABOR:",
+    error
+  )
+  alert("Erro ao editar sabor.")
+  return
+}
+
+setFlavors(
+  flavors.map((item) =>
+    item.id === editingFlavor
+      ? {
+          ...item,
+          name: flavor.trim(),
+          category: flavorCategory,
+        }
+      : item
+  )
+)
+
+setFlavor("")
+setFlavorCategory("")
+setEditingFlavor(null)
+
+
+}
+
+async function deleteFlavor(id: number) {
+const confirmDelete =
+window.confirm(
+"Excluir esse sabor?"
+)
+
+
+if (!confirmDelete) {
+  return
+}
+
+const { error } = await supabase
+  .from("flavors")
+  .delete()
+  .eq("id", id)
+
+if (error) {
+  console.error(
+    "ERRO AO EXCLUIR SABOR:",
+    error
+  )
+  alert("Erro ao excluir sabor.")
+  return
+}
+
+setFlavors(
+  flavors.filter(
+    (item) => item.id !== id
+  )
+)
+
+if (editingFlavor === id) {
+  setEditingFlavor(null)
+  setFlavor("")
+  setFlavorCategory("")
+}
+
+
+}
+
+return (
+   <div> <h1 className="text-3xl font-bold">
+Configurações </h1>
+
+
+  <p className="mt-2 text-gray-500">
+    Gerencie categorias, marcas e sabores da ZERO GRAU
+  </p>
+
+  <div className="grid grid-cols-3 gap-6 mt-8">
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="font-bold text-lg">
+        📦 Categorias
+      </h2>
+
+      <input
+        className="border p-2 rounded w-full mt-4"
+        placeholder="Ex: Cerveja"
+        value={category}
+        onChange={(e) =>
+          setCategory(e.target.value)
+        }
+      />
+
+      <button
+        onClick={
+          editingCategory
+            ? saveEditCategory
+            : addCategory
+        }
+        className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        {editingCategory
+          ? "Salvar edição"
+          : "Adicionar"}
+      </button>
+
+      {editingCategory && (
+        <button
+          onClick={() => {
+            setCategory("")
+            setEditingCategory(null)
+          }}
+          className="mt-3 ml-2 bg-gray-500 text-white px-4 py-2 rounded"
+        >
+          Cancelar
+        </button>
+      )}
+
+      <div className="mt-5 space-y-2">
+        {categories.map((item) => (
+          <div
+            key={item}
+            className="flex justify-between items-center border-b py-2"
+          >
+            <span>{item}</span>
+
+            <div>
+              <button
+                onClick={() =>
+                  editCategory(item)
+                }
+                className="text-blue-600 mr-3"
+              >
+                Editar
+              </button>
+
+              <button
+                onClick={() =>
+                  deleteCategory(item)
+                }
+                className="text-red-600"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {categories.length === 0 && (
+          <p className="text-gray-500">
+            Nenhuma categoria cadastrada.
+          </p>
+        )}
+      </div>
+    </div>
+
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="font-bold text-lg">
+        🏷️ Marcas
+      </h2>
+
+      <input
+        className="border p-2 rounded w-full mt-4"
+        placeholder="Marca"
+        value={brand}
+        onChange={(e) =>
+          setBrand(e.target.value)
+        }
+      />
+
+      <select
+        className="border p-2 rounded w-full mt-3"
+        value={brandCategory}
+        onChange={(e) =>
+          setBrandCategory(
+            e.target.value
+          )
+        }
+      >
+        <option value="">
+          Selecione a categoria
+        </option>
+
+        {categories.map((cat) => (
+          <option
+            key={cat}
+            value={cat}
+          >
+            {cat}
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={
+          editingBrand
+            ? saveEditBrand
+            : addBrand
+        }
+        className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        {editingBrand
+          ? "Salvar edição"
+          : "Adicionar marca"}
+      </button>
+
+      {editingBrand && (
+        <button
+          onClick={() => {
+            setBrand("")
+            setBrandCategory("")
+            setEditingBrand(null)
+          }}
+          className="mt-3 ml-2 bg-gray-500 text-white px-4 py-2 rounded"
+        >
+          Cancelar
+        </button>
+      )}
+
+      <div className="mt-5 space-y-2">
+        {brands.map((item) => (
+          <div
+            key={item.id}
+            className="flex justify-between items-center border-b py-2"
+          >
+            <div>
+              <p className="font-medium">
+                {item.name}
+              </p>
+
+              <p className="text-sm text-gray-500">
+                {item.category}
+              </p>
+            </div>
+
+            <div>
+              <button
+                onClick={() =>
+                  editBrand(item)
+                }
+                className="text-blue-600 mr-3"
+              >
+                Editar
+              </button>
+
+              <button
+                onClick={() =>
+                  deleteBrand(item.id)
+                }
+                className="text-red-600"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {brands.length === 0 && (
+          <p className="text-gray-500">
+            Nenhuma marca cadastrada.
+          </p>
+        )}
+      </div>
+    </div>
+
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="font-bold text-lg">
+        🍹 Sabores
+      </h2>
+
+      <input
+        className="border p-2 rounded w-full mt-4"
+        placeholder="Ex: Limão"
+        value={flavor}
+        onChange={(e) =>
+          setFlavor(e.target.value)
+        }
+      />
+
+      <select
+        className="border p-2 rounded w-full mt-3"
+        value={flavorCategory}
+        onChange={(e) =>
+          setFlavorCategory(
+            e.target.value
+          )
+        }
+      >
+        <option value="">
+          Selecione a categoria
+        </option>
+
+        {categories.map((cat) => (
+          <option
+            key={cat}
+            value={cat}
+          >
+            {cat}
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={
+          editingFlavor
+            ? saveEditFlavor
+            : addFlavor
+        }
+        className="mt-3 bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        {editingFlavor
+          ? "Salvar edição"
+          : "Adicionar sabor"}
+      </button>
+
+      {editingFlavor && (
+        <button
+          onClick={() => {
+            setFlavor("")
+            setFlavorCategory("")
+            setEditingFlavor(null)
+          }}
+          className="mt-3 ml-2 bg-gray-500 text-white px-4 py-2 rounded"
+        >
+          Cancelar
+        </button>
+      )}
+
+      <div className="mt-5 space-y-2">
+        {flavors.map((item) => (
+          <div
+            key={item.id}
+            className="flex justify-between items-center border-b py-2"
+          >
+            <div>
+              <p className="font-medium">
+                {item.name}
+              </p>
+
+              <p className="text-sm text-gray-500">
+                {item.category}
+              </p>
+            </div>
+
+            <div>
+              <button
+                onClick={() =>
+                  editFlavor(item)
+                }
+                className="text-blue-600 mr-3"
+              >
+                Editar
+              </button>
+
+              <button
+                onClick={() =>
+                  deleteFlavor(item.id)
+                }
+                className="text-red-600"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {flavors.length === 0 && (
+          <p className="text-gray-500">
+            Nenhum sabor cadastrado.
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+  <Backup />
+</div>
+
+
+)
+}
+
 export default Configuracoes
-import Backup from "../components/backup/Backup"

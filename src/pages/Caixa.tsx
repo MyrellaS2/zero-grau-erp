@@ -1,63 +1,100 @@
 import { useEffect, useState } from "react"
+import { supabase } from "../lib/supabase"
 
 function Caixa() {
-
   const [sales, setSales] = useState<any[]>([])
 
-
   useEffect(() => {
+    const loadSales = async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .order("date", { ascending: false })
 
-    const saved = localStorage.getItem("sales")
+      if (error) {
+        console.error("ERRO AO CARREGAR VENDAS:", error)
+        return
+      }
 
-    if(saved){
-      setSales(JSON.parse(saved))
+      setSales(data || [])
     }
 
+    loadSales()
   }, [])
 
-
-
   const totalVendido = sales.reduce(
-    (total, sale) => total + sale.total,
+    (total, sale) =>
+      total + Number(sale.total || 0),
     0
   )
-
 
   const lucroTotal = sales.reduce(
-    (total, sale) => total + sale.profit,
+    (total, sale) =>
+      total + Number(sale.profit || 0),
     0
   )
-
 
   const quantidadeVendas = sales.length
 
-
-
   const dinheiro = sales
-    .filter((sale)=> sale.payment === "Dinheiro")
-    .reduce((total,sale)=> total + sale.total,0)
-
+    .filter(
+      (sale) =>
+        sale.payment === "Dinheiro" &&
+        sale.status !== "Pendente"
+    )
+    .reduce(
+      (total, sale) =>
+        total + Number(sale.total || 0),
+      0
+    )
 
   const pix = sales
-    .filter((sale)=> sale.payment === "Pix")
-    .reduce((total,sale)=> total + sale.total,0)
-
+    .filter(
+      (sale) =>
+        sale.payment === "Pix" &&
+        sale.status !== "Pendente"
+    )
+    .reduce(
+      (total, sale) =>
+        total + Number(sale.total || 0),
+      0
+    )
 
   const debito = sales
-    .filter((sale)=> sale.payment === "Débito")
-    .reduce((total,sale)=> total + sale.total,0)
-
+    .filter(
+      (sale) =>
+        sale.payment === "Débito" &&
+        sale.status !== "Pendente"
+    )
+    .reduce(
+      (total, sale) =>
+        total + Number(sale.total || 0),
+      0
+    )
 
   const credito = sales
-    .filter((sale)=> sale.payment === "Crédito")
-    .reduce((total,sale)=> total + sale.total,0)
-
+    .filter(
+      (sale) =>
+        sale.payment === "Crédito" &&
+        sale.status !== "Pendente"
+    )
+    .reduce(
+      (total, sale) =>
+        total + Number(sale.total || 0),
+      0
+    )
 
   const fiado = sales
-    .filter((sale)=> sale.payment === "Fiado" && sale.status === "Pendente")
-    .reduce((total,sale)=> total + sale.total,0)
-
-
+    .filter(
+      (sale) =>
+        sale.payment === "Fiado" &&
+        sale.status === "Pendente"
+    )
+    .reduce(
+      (total, sale) =>
+        total + Number(sale.total || 0),
+      0
+    )
 
   const recebido =
     dinheiro +
@@ -65,27 +102,17 @@ function Caixa() {
     debito +
     credito
 
-
-
   return (
-
     <div>
-
-
       <h1 className="text-3xl font-bold">
         Caixa
       </h1>
-
 
       <p className="mt-2 text-gray-500">
         Controle financeiro da ZERO GRAU
       </p>
 
-
-
       <div className="grid grid-cols-4 gap-6 mt-8">
-
-
         <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-gray-500">
             💰 Vendido
@@ -95,8 +122,6 @@ function Caixa() {
             R$ {totalVendido.toFixed(2)}
           </h2>
         </div>
-
-
 
         <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-gray-500">
@@ -108,8 +133,6 @@ function Caixa() {
           </h2>
         </div>
 
-
-
         <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-gray-500">
             📈 Lucro
@@ -120,8 +143,6 @@ function Caixa() {
           </h2>
         </div>
 
-
-
         <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-gray-500">
             🛒 Vendas
@@ -131,46 +152,33 @@ function Caixa() {
             {quantidadeVendas}
           </h2>
         </div>
-
-
       </div>
 
-
-
-
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
-
         <h2 className="font-bold text-lg">
           Formas de pagamento
         </h2>
 
-
         <div className="mt-4 space-y-3">
-
-
           <p>
             💵 Dinheiro:
             <b> R$ {dinheiro.toFixed(2)}</b>
           </p>
-
 
           <p>
             📱 Pix:
             <b> R$ {pix.toFixed(2)}</b>
           </p>
 
-
           <p>
             💳 Débito:
             <b> R$ {debito.toFixed(2)}</b>
           </p>
 
-
           <p>
             💳 Crédito:
             <b> R$ {credito.toFixed(2)}</b>
           </p>
-
 
           <p>
             📝 Fiado pendente:
@@ -178,78 +186,53 @@ function Caixa() {
               {" "}R$ {fiado.toFixed(2)}
             </b>
           </p>
-
-
         </div>
-
       </div>
 
-
-
-
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
-
-
         <h2 className="font-bold text-lg">
           Últimas vendas
         </h2>
 
-
         <div className="mt-4 space-y-3">
-
-
-          {[...sales].reverse().slice(0,5).map((sale)=>(
-
-
+          {sales.slice(0, 5).map((sale) => (
             <div
               key={sale.id}
               className="border rounded-lg p-4 flex justify-between"
             >
-
-
               <div>
-
                 <p className="font-bold">
                   {sale.product}
                 </p>
-
 
                 <p className="text-gray-500">
                   {sale.payment}
                 </p>
 
-
                 <p className="text-gray-500">
-                  {sale.date}
+                  {sale.date
+                    ? new Date(
+                        sale.date
+                      ).toLocaleString("pt-BR")
+                    : "-"}
                 </p>
-
               </div>
 
-
-
               <p className="font-bold">
-                R$ {sale.total.toFixed(2)}
+                R$ {Number(sale.total || 0).toFixed(2)}
               </p>
-
-
             </div>
-
-
           ))}
 
-
+          {sales.length === 0 && (
+            <p className="text-gray-500">
+              Nenhuma venda registrada.
+            </p>
+          )}
         </div>
-
-
       </div>
-
-
-
     </div>
-
   )
-
 }
-
 
 export default Caixa
