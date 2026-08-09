@@ -14,12 +14,30 @@ function Vendas() {
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
   const [discount, setDiscount] = useState("")
+  const [hasDelivery, setHasDelivery] = useState(false)
+const [deliveryFee, setDeliveryFee] = useState(0)
 
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
   useEffect(() => {
     async function loadData() {
+      const { data: settingsData, error: settingsError } =
+  await supabase
+    .from("settings")
+    .select("delivery_fee")
+    .limit(1)
+
+if (settingsError) {
+  console.error(
+    "ERRO AO CARREGAR FRETE:",
+    settingsError
+  )
+} else if (settingsData && settingsData.length > 0) {
+  setDeliveryFee(
+    Number(settingsData[0].delivery_fee || 0)
+  )
+}
       const {
         data: productsData,
         error: productsError,
@@ -226,14 +244,18 @@ function Vendas() {
       0
     )
 
-  const finalTotal =
-    Math.max(
-      0,
-      cartTotal -
-        Number(
-          discount || 0
-        )
-    )
+  const deliveryTotal =
+  hasDelivery
+    ? deliveryFee
+    : 0
+
+const finalTotal =
+  Math.max(
+    0,
+    cartTotal +
+      deliveryTotal -
+      Number(discount || 0)
+  )
 
   const cartProfit =
     cart.reduce(
@@ -589,16 +611,20 @@ function Vendas() {
      */
 
     const saleData = {
-      products: cart,
+  products: cart,
 
-      product:
-        cart
-          .map(
-            (item) =>
-              item.displayName ||
-              item.name
-          )
-          .join(", "),
+  delivery_fee: deliveryTotal,
+
+  product:
+    cart
+      .map(
+        (item) =>
+          item.displayName ||
+          item.name
+      )
+      .join(", "),
+
+     
 
       quantity:
         cart.reduce(
@@ -706,9 +732,11 @@ function Vendas() {
     setCustomer("")
     setPayment("")
     setDiscount("")
+    setHasDelivery(false)
     setProductSearch("")
     setProductId("")
     setQuantity("")
+    
 
     alert(
       "Venda registrada!"
@@ -942,6 +970,28 @@ const periodQuantity =
           )}
 
           <div className="border-t mt-5 pt-4">
+            <div className="mt-4 border rounded-lg p-3">
+  <label className="flex items-center gap-3 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={hasDelivery}
+      onChange={(e) =>
+        setHasDelivery(e.target.checked)
+      }
+      className="w-4 h-4"
+    />
+
+    <span className="font-medium">
+      🚚 Adicionar frete
+    </span>
+  </label>
+
+  {hasDelivery && (
+    <p className="text-gray-500 text-sm mt-2">
+      Frete: R$ {deliveryFee.toFixed(2)}
+    </p>
+  )}
+</div>
             <input
               className="border p-2 rounded w-full mt-4"
               type="number"
@@ -958,6 +1008,12 @@ const periodQuantity =
               Subtotal: R${" "}
               {cartTotal.toFixed(2)}
             </p>
+            {hasDelivery && (
+  <p className="text-gray-600">
+    Frete: R${" "}
+    {deliveryFee.toFixed(2)}
+  </p>
+)}
 
             <p className="font-bold text-xl text-blue-800">
               Total: R${" "}
@@ -1137,6 +1193,11 @@ const periodQuantity =
                     Status:{" "}
                     {sale.status}
                   </p>
+                  {Number(sale.delivery_fee || 0) > 0 && (
+  <p className="text-gray-500">
+    🚚 Frete: R$ {Number(sale.delivery_fee).toFixed(2)}
+  </p>
+)}
                 </div>
 
                 <div className="text-right">
