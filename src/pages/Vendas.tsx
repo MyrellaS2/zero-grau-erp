@@ -11,33 +11,44 @@ function Vendas() {
   const [productSearch, setProductSearch] = useState("")
   const [cart, setCart] = useState<any[]>([])
 
+  const [saleType, setSaleType] =
+    useState<"Unidade" | "Fardo">("Unidade")
+
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
   const [discount, setDiscount] = useState("")
   const [hasDelivery, setHasDelivery] = useState(false)
-const [deliveryFee, setDeliveryFee] = useState(0)
+  const [deliveryFee, setDeliveryFee] = useState(0)
 
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
   useEffect(() => {
     async function loadData() {
-      const { data: settingsData, error: settingsError } =
-  await supabase
-    .from("settings")
-    .select("delivery_fee")
-    .limit(1)
+      const {
+        data: settingsData,
+        error: settingsError,
+      } = await supabase
+        .from("settings")
+        .select("delivery_fee")
+        .limit(1)
 
-if (settingsError) {
-  console.error(
-    "ERRO AO CARREGAR FRETE:",
-    settingsError
-  )
-} else if (settingsData && settingsData.length > 0) {
-  setDeliveryFee(
-    Number(settingsData[0].delivery_fee || 0)
-  )
-}
+      if (settingsError) {
+        console.error(
+          "ERRO AO CARREGAR FRETE:",
+          settingsError
+        )
+      } else if (
+        settingsData &&
+        settingsData.length > 0
+      ) {
+        setDeliveryFee(
+          Number(
+            settingsData[0].delivery_fee || 0
+          )
+        )
+      }
+
       const {
         data: productsData,
         error: productsError,
@@ -71,27 +82,38 @@ if (settingsError) {
 
       if (productsData) {
         const formattedProducts =
-          productsData.map(
-            (item: any) => ({
-              ...item,
-              entryType:
-                item.entry_type,
-              itemsPerPackage:
-                item.items_per_package,
-              purchasePrice:
-                Number(
-                  item.purchase_price || 0
-                ),
-              salePrice:
-                Number(
-                  item.sale_price || 0
-                ),
-              stock:
-                Number(
-                  item.stock || 0
-                ),
-            })
-          )
+          productsData.map((item: any) => ({
+            ...item,
+
+            entryType:
+              item.entry_type,
+
+            itemsPerPackage:
+              item.items_per_package,
+
+            purchasePrice:
+              Number(
+                item.purchase_price || 0
+              ),
+
+            salePrice:
+              Number(
+                item.sale_price || 0
+              ),
+
+            salePricePackage:
+              item.sale_price_package !== null &&
+              item.sale_price_package !== undefined
+                ? Number(
+                    item.sale_price_package
+                  )
+                : null,
+
+            stock:
+              Number(
+                item.stock || 0
+              ),
+          }))
 
         setProducts(
           formattedProducts
@@ -107,21 +129,20 @@ if (settingsError) {
   }, [])
 
   const filteredProducts =
-    products.filter(
-      (product) =>
-        (
-          product.name +
-          " " +
-          (product.brand || "") +
-          " " +
-          (product.flavor || "") +
-          " " +
-          (product.volume || "")
+    products.filter((product) =>
+      (
+        product.name +
+        " " +
+        (product.brand || "") +
+        " " +
+        (product.flavor || "") +
+        " " +
+        (product.volume || "")
+      )
+        .toLowerCase()
+        .includes(
+          productSearch.toLowerCase()
         )
-          .toLowerCase()
-          .includes(
-            productSearch.toLowerCase()
-          )
     )
 
   function addToCart() {
@@ -143,36 +164,79 @@ if (settingsError) {
       return
     }
 
+    if (
+      saleType === "Fardo" &&
+      (!product.itemsPerPackage ||
+        Number(
+          product.itemsPerPackage
+        ) <= 0)
+    ) {
+      alert(
+        "Esse produto não possui quantidade por fardo cadastrada."
+      )
+      return
+    }
+
+    const stockQuantity =
+      saleType === "Fardo"
+        ? qtd *
+          Number(
+            product.itemsPerPackage
+          )
+        : qtd
+
+    const price =
+      saleType === "Fardo"
+        ? Number(
+            product.salePricePackage || 0
+          )
+        : Number(
+            product.salePrice || 0
+          )
+
+    if (price <= 0) {
+      alert(
+        "Esse produto não possui preço de venda cadastrado."
+      )
+      return
+    }
+
     const alreadyInCart =
       cart.find(
         (item) =>
-          item.id === product.id
+          item.id === product.id &&
+          item.saleType === saleType
       )
 
-    const totalQuantity =
+    const totalStockQuantity =
       alreadyInCart
-        ? alreadyInCart.quantity +
-          qtd
-        : qtd
+        ? alreadyInCart.stockQuantity +
+          stockQuantity
+        : stockQuantity
 
     if (
-      totalQuantity >
+      totalStockQuantity >
       Number(product.stock)
     ) {
-      alert(
-        "Estoque insuficiente!"
-      )
+      alert("Estoque insuficiente!")
       return
     }
 
     if (alreadyInCart) {
       setCart(
         cart.map((item) =>
-          item.id === product.id
+          item.id === product.id &&
+          item.saleType === saleType
             ? {
                 ...item,
+
                 quantity:
                   item.quantity + qtd,
+
+                stockQuantity:
+                  item.stockQuantity +
+                  stockQuantity,
+
                 total:
                   (item.quantity + qtd) *
                   item.salePrice,
@@ -183,6 +247,7 @@ if (settingsError) {
     } else {
       setCart([
         ...cart,
+
         {
           id: product.id,
 
@@ -202,34 +267,53 @@ if (settingsError) {
 
           quantity: qtd,
 
-          salePrice:
+          saleType,
+
+          stockQuantity,
+
+          itemsPerPackage:
             Number(
-              product.salePrice
+              product.itemsPerPackage || 0
             ),
+
+          salePrice: price,
 
           purchasePrice:
-            Number(
-              product.purchasePrice
-            ),
+            saleType === "Fardo"
+              ? Number(
+                  product.purchasePrice || 0
+                ) *
+                Number(
+                  product.itemsPerPackage ||
+                    0
+                )
+              : Number(
+                  product.purchasePrice || 0
+                ),
 
           total:
-            Number(
-              product.salePrice
-            ) * qtd,
+            price * qtd,
         },
       ])
     }
 
     setProductId("")
     setQuantity("")
+    setProductSearch("")
+    setSaleType("Unidade")
   }
 
   function removeFromCart(
-    id: number
+    id: number,
+    saleType: "Unidade" | "Fardo"
   ) {
     setCart(
       cart.filter(
-        (item) => item.id !== id
+        (item) =>
+          !(
+            item.id === id &&
+            item.saleType === saleType
+          )
       )
     )
   }
@@ -245,17 +329,20 @@ if (settingsError) {
     )
 
   const deliveryTotal =
-  hasDelivery
-    ? deliveryFee
-    : 0
+    hasDelivery
+      ? deliveryFee
+      : 0
 
-const finalTotal =
-  Math.max(
-    0,
-    cartTotal +
-      deliveryTotal -
-      Number(discount || 0)
-  )
+  const discountValue =
+    Number(discount || 0)
+
+  const finalTotal =
+    Math.max(
+      0,
+      cartTotal +
+        deliveryTotal -
+        discountValue
+    )
 
   const cartProfit =
     cart.reduce(
@@ -306,13 +393,18 @@ const finalTotal =
 
         if (!product) continue
 
+        const quantityToReturn =
+          Number(
+            soldProduct.stockQuantity ||
+              soldProduct.quantity ||
+              0
+          )
+
         const newStock =
           Number(
             product.stock || 0
           ) +
-          Number(
-            soldProduct.quantity || 0
-          )
+          quantityToReturn
 
         const {
           error,
@@ -356,10 +448,7 @@ const finalTotal =
             type: "Entrada",
 
             quantity:
-              Number(
-                soldProduct.quantity ||
-                  0
-              ),
+              quantityToReturn,
 
             date:
               new Date().toISOString(),
@@ -400,34 +489,48 @@ const finalTotal =
       return
     }
 
-    const updatedProducts =
-      products.map(
-        (product) => {
-          const soldProduct =
-            sale.products?.find(
-              (item: any) =>
-                item.id ===
-                product.id
-            )
+  
+const updatedProducts =
+  products.map(
+    (product) => {
+      const totalQuantitySold =
+        cart
+          .filter(
+            (cartItem) =>
+              cartItem.id ===
+              product.id
+          )
+          .reduce(
+            (
+              total: number,
+              cartItem: any
+            ) =>
+              total +
+              Number(
+                cartItem.stockQuantity ||
+                  cartItem.quantity ||
+                  0
+              ),
+            0
+          )
 
-          if (soldProduct) {
-            return {
-              ...product,
+      if (totalQuantitySold > 0) {
+        return {
+          ...product,
 
-              stock:
-                Number(
-                  product.stock || 0
-                ) +
-                Number(
-                  soldProduct.quantity ||
-                    0
-                ),
-            }
-          }
-
-          return product
+          stock:
+            Number(
+              product.stock || 0
+            ) -
+            totalQuantitySold,
         }
-      )
+      }
+
+      return product
+    }
+  )
+
+
 
     setProducts(
       updatedProducts
@@ -468,11 +571,6 @@ const finalTotal =
       return
     }
 
-    /*
-     * Confere o estoque novamente
-     * antes de começar a venda.
-     */
-
     for (
       const item of cart
     ) {
@@ -491,10 +589,12 @@ const finalTotal =
 
       if (
         Number(
-          item.quantity
+          item.stockQuantity ||
+            item.quantity ||
+            0
         ) >
         Number(
-          product.stock
+          product.stock || 0
         )
       ) {
         alert(
@@ -509,14 +609,7 @@ const finalTotal =
 
     const profit =
       cartProfit -
-      Number(
-        discount || 0
-      )
-
-    /*
-     * Primeiro atualiza o estoque
-     * e registra as movimentações.
-     */
+      discountValue
 
     for (
       const item of cart
@@ -534,13 +627,18 @@ const finalTotal =
         return
       }
 
+      const quantityToRemove =
+        Number(
+          item.stockQuantity ||
+            item.quantity ||
+            0
+        )
+
       const newStock =
         Number(
           product.stock || 0
         ) -
-        Number(
-          item.quantity || 0
-        )
+        quantityToRemove
 
       const {
         error: stockError,
@@ -584,9 +682,7 @@ const finalTotal =
           type: "Saída",
 
           quantity:
-            Number(
-              item.quantity || 0
-            ),
+            quantityToRemove,
 
           date:
             new Date().toISOString(),
@@ -606,25 +702,20 @@ const finalTotal =
       }
     }
 
-    /*
-     * Agora registra a venda.
-     */
-
     const saleData = {
-  products: cart,
+      products: cart,
 
-  delivery_fee: deliveryTotal,
+      delivery_fee:
+        deliveryTotal,
 
-  product:
-    cart
-      .map(
-        (item) =>
-          item.displayName ||
-          item.name
-      )
-      .join(", "),
-
-     
+      product:
+        cart
+          .map(
+            (item) =>
+              item.displayName ||
+              item.name
+          )
+          .join(", "),
 
       quantity:
         cart.reduce(
@@ -676,10 +767,6 @@ const finalTotal =
       return
     }
 
-    /*
-     * Atualiza o estoque na tela.
-     */
-
     const updatedProducts =
       products.map(
         (product) => {
@@ -699,7 +786,9 @@ const finalTotal =
                   product.stock || 0
                 ) -
                 Number(
-                  item.quantity || 0
+                  item.stockQuantity ||
+                    item.quantity ||
+                    0
                 ),
             }
           }
@@ -712,21 +801,12 @@ const finalTotal =
       updatedProducts
     )
 
-    /*
-     * Atualiza o histórico
-     * de vendas na tela.
-     */
-
     if (newSaleData) {
       setSales([
         newSaleData[0],
         ...sales,
       ])
     }
-
-    /*
-     * Limpa a venda.
-     */
 
     setCart([])
     setCustomer("")
@@ -736,7 +816,6 @@ const finalTotal =
     setProductSearch("")
     setProductId("")
     setQuantity("")
-    
 
     alert(
       "Venda registrada!"
@@ -761,14 +840,14 @@ const finalTotal =
         const start =
           startDate
             ? new Date(
-                startDate
+                `${startDate}T00:00:00`
               )
             : null
 
         const end =
           endDate
             ? new Date(
-                endDate
+                `${endDate}T23:59:59`
               )
             : null
 
@@ -790,48 +869,67 @@ const finalTotal =
       }
     )
 
- 
-const paidSales =
-  filteredSales.filter(
-    (sale) =>
-      sale.status === "Pago"
-  )
+  const paidSales =
+    filteredSales.filter(
+      (sale) =>
+        sale.status === "Pago"
+    )
 
-const periodTotal =
-  paidSales.reduce(
-    (total, sale) =>
-      total +
-      Number(
-        sale.total || 0
-      ),
-    0
-  )
+  const periodTotal =
+    paidSales.reduce(
+      (total, sale) =>
+        total +
+        Number(
+          sale.total || 0
+        ),
+      0
+    )
 
-const periodProfit =
-  paidSales.reduce(
-    (total, sale) =>
-      total +
-      Number(
-        sale.profit || 0
-      ),
-    0
-  )
+  const periodProfit =
+    paidSales.reduce(
+      (total, sale) =>
+        total +
+        Number(
+          sale.profit || 0
+        ),
+      0
+    )
 
-const periodQuantity =
-  paidSales.reduce(
-    (total, sale) =>
-      total +
-      Number(
-        sale.quantity || 0
-      ),
-    0
-  )
+  const periodQuantity =
+    paidSales.reduce(
+      (total, sale) => {
+        if (!sale.products) {
+          return (
+            total +
+            Number(
+              sale.quantity || 0
+            )
+          )
+        }
 
-
+        return (
+          total +
+          sale.products.reduce(
+            (
+              sum: number,
+              item: any
+            ) =>
+              sum +
+              Number(
+                item.stockQuantity ||
+                  item.quantity ||
+                  0
+              ),
+            0
+          )
+        )
+      },
+      0
+    )
 
   return (
     <div>
-      <h1 className="text-3xl font-bold">
+      <h1 className="text-2xl font-bold">
         Vendas
       </h1>
 
@@ -896,9 +994,39 @@ const periodQuantity =
             )}
           </div>
 
+          {productId && (
+            <select
+              className="border p-2 rounded w-full mt-3"
+              value={saleType}
+              onChange={(e) =>
+                setSaleType(
+                  e.target.value as
+                    | "Unidade"
+                    | "Fardo"
+                )
+              }
+            >
+              <option value="Unidade">
+                Venda por unidade
+              </option>
+
+              {products.find(
+                (item) =>
+                  item.id ===
+                  Number(productId)
+              )?.entryType ===
+                "Fardo" && (
+                <option value="Fardo">
+                  Venda por fardo
+                </option>
+              )}
+            </select>
+          )}
+
           <input
             className="border p-2 rounded w-full mt-3"
             type="number"
+            min="1"
             placeholder="Quantidade"
             value={quantity}
             onChange={(e) =>
@@ -930,7 +1058,7 @@ const periodQuantity =
               {cart.map(
                 (item) => (
                   <div
-                    key={item.id}
+                    key={`${item.id}-${item.saleType}`}
                     className="border rounded-lg p-3 flex justify-between items-center"
                   >
                     <div>
@@ -940,7 +1068,11 @@ const periodQuantity =
                       </p>
 
                       <p className="text-gray-500">
-                        {item.quantity} unidade(s)
+                        {item.quantity}{" "}
+                        {item.saleType ===
+                        "Fardo"
+                          ? "fardo(s)"
+                          : "unidade(s)"}
                       </p>
                     </div>
 
@@ -955,7 +1087,8 @@ const periodQuantity =
                       <button
                         onClick={() =>
                           removeFromCart(
-                            item.id
+                            item.id,
+                            item.saleType
                           )
                         }
                         className="text-red-600 text-sm mt-1"
@@ -970,32 +1103,39 @@ const periodQuantity =
           )}
 
           <div className="border-t mt-5 pt-4">
-            <div className="mt-4 border rounded-lg p-3">
-  <label className="flex items-center gap-3 cursor-pointer">
-    <input
-      type="checkbox"
-      checked={hasDelivery}
-      onChange={(e) =>
-        setHasDelivery(e.target.checked)
-      }
-      className="w-4 h-4"
-    />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasDelivery}
+                onChange={(e) =>
+                  setHasDelivery(
+                    e.target.checked
+                  )
+                }
+              />
 
-    <span className="font-medium">
-      🚚 Adicionar frete
-    </span>
-  </label>
+              <span className="font-medium">
+                🚚 Adicionar frete
+              </span>
+            </label>
 
-  {hasDelivery && (
-    <p className="text-gray-500 text-sm mt-2">
-      Frete: R$ {deliveryFee.toFixed(2)}
-    </p>
-  )}
-</div>
+            {hasDelivery && (
+              <p className="text-gray-600 mt-2">
+                Frete: R${" "}
+                {deliveryFee.toFixed(2)}
+              </p>
+            )}
+
+            <p className="font-bold text-lg mt-3">
+              Subtotal: R${" "}
+              {cartTotal.toFixed(2)}
+            </p>
+
             <input
-              className="border p-2 rounded w-full mt-4"
+              className="border p-2 rounded w-full mt-3"
               type="number"
-              placeholder="Desconto (R$)"
+              min="0"
+              placeholder="Desconto em R$"
               value={discount}
               onChange={(e) =>
                 setDiscount(
@@ -1004,18 +1144,14 @@ const periodQuantity =
               }
             />
 
-            <p className="font-bold text-lg mt-3">
-              Subtotal: R${" "}
-              {cartTotal.toFixed(2)}
-            </p>
-            {hasDelivery && (
-  <p className="text-gray-600">
-    Frete: R${" "}
-    {deliveryFee.toFixed(2)}
-  </p>
-)}
+            {discountValue > 0 && (
+              <p className="text-red-600 mt-2">
+                Desconto: -R${" "}
+                {discountValue.toFixed(2)}
+              </p>
+            )}
 
-            <p className="font-bold text-xl text-blue-800">
+            <p className="font-bold text-xl text-blue-800 mt-2">
               Total: R${" "}
               {finalTotal.toFixed(2)}
             </p>
@@ -1108,6 +1244,16 @@ const periodQuantity =
               )
             }
           />
+
+          <button
+            onClick={() => {
+              setStartDate("")
+              setEndDate("")
+            }}
+            className="border px-4 rounded"
+          >
+            Limpar
+          </button>
         </div>
       </div>
 
@@ -1193,11 +1339,17 @@ const periodQuantity =
                     Status:{" "}
                     {sale.status}
                   </p>
-                  {Number(sale.delivery_fee || 0) > 0 && (
-  <p className="text-gray-500">
-    🚚 Frete: R$ {Number(sale.delivery_fee).toFixed(2)}
-  </p>
-)}
+
+                  {Number(
+                    sale.delivery_fee || 0
+                  ) > 0 && (
+                    <p className="text-gray-500">
+                      🚚 Frete: R${" "}
+                      {Number(
+                        sale.delivery_fee
+                      ).toFixed(2)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="text-right">
@@ -1242,4 +1394,3 @@ const periodQuantity =
 }
 
 export default Vendas
-

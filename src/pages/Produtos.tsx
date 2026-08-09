@@ -117,6 +117,8 @@ if(movementsError){
     ...item,
     purchasePrice: item.purchase_price,
     salePrice: item.sale_price,
+    salePricePackage:
+  item.sale_price_package,
     entryType: item.entry_type,
     itemsPerPackage: item.items_per_package
   })) as Product[]
@@ -185,7 +187,11 @@ loadData()
     items_per_package: Number(product.itemsPerPackage),
     stock: product.stock,
     purchase_price: product.purchasePrice,
-    sale_price: product.salePrice
+    sale_price: product.salePrice,
+sale_price_package:
+  product.salePricePackage
+    ? Number(product.salePricePackage)
+    : null
   }
 
 

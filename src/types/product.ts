@@ -22,6 +22,8 @@ export interface Product {
   purchasePrice: number
 
   salePrice: number
+
+  salePricePackage?: number | null
 }
 
 export interface Brand {
@@ -53,6 +55,7 @@ export interface StockMovement {
 
   observation?: string
 }
+
 export const products: Product[] = [
   {
     id: 1,
@@ -77,9 +80,10 @@ export const products: Product[] = [
 
     purchasePrice: 4.50,
 
-    salePrice: 6.00
-  },
+    salePrice: 6.00,
 
+    salePricePackage: null
+  },
 
   {
     id: 2,
@@ -104,6 +108,8 @@ export const products: Product[] = [
 
     purchasePrice: 8.00,
 
-    salePrice: 15.00
+    salePrice: 15.00,
+
+    salePricePackage: null
   }
 ]

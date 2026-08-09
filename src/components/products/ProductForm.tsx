@@ -72,6 +72,8 @@ function ProductForm({
 
   const [salePrice, setSalePrice] =
     useState("")
+    const [salePricePackage, setSalePricePackage] =
+  useState("")
 
 
 
@@ -112,6 +114,11 @@ function ProductForm({
     setSalePrice(
       String(product.salePrice)
     )
+    setSalePricePackage(
+  product.salePricePackage
+    ? String(product.salePricePackage)
+    : ""
+)
 
 
   },[product])
@@ -140,7 +147,7 @@ function ProductForm({
     setPurchasePrice("")
 
     setSalePrice("")
-
+setSalePricePackage("")
 
   }
 
@@ -214,7 +221,13 @@ function ProductForm({
 
 
       salePrice:
-        Number(salePrice)
+        Number(salePrice),
+
+        salePricePackage:
+  entryType === "Fardo" && salePricePackage
+    ? Number(salePricePackage)
+    : null
+        
 
 
     }
@@ -520,8 +533,19 @@ setFlavor("")
               e.target.value
             )
           }
+          
 
         />
+        {entryType === "Fardo" && (
+  <Input
+    type="number"
+    placeholder="Preço de venda do fardo/caixa"
+    value={salePricePackage}
+    onChange={(e) =>
+      setSalePricePackage(e.target.value)
+    }
+  />
+)}
 
 
 
