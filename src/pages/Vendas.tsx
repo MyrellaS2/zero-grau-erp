@@ -681,28 +681,21 @@ const {
   })
   .select()
 
-console.log(
-  "MOVIMENTAÇÃO:",
-  movementData
-)
-
-console.log(
-  "ERRO MOVIMENTAÇÃO:",
-  movementError
-)
+console.log("MOVIMENTAÇÃO SALVA:", movementData)
+console.log("ERRO REAL DO HISTÓRICO:", movementError)
 
 if (movementError) {
   alert(
     "ERRO REAL DO HISTÓRICO:\n\n" +
-    JSON.stringify(
-      movementError,
-      null,
-      2
-    )
+    `Código: ${movementError.code}\n` +
+    `Mensagem: ${movementError.message}\n` +
+    `Detalhes: ${movementError.details}\n` +
+    `Hint: ${movementError.hint}`
   )
 
   return
 }
+
     }
 
     const saleData = {
