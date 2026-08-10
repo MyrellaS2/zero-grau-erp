@@ -688,14 +688,14 @@ const updatedProducts =
             new Date().toISOString(),
         })
 
-      if (movementError) {
+     if (movementError) {
   console.error(
     "ERRO AO REGISTRAR MOVIMENTAÇÃO:",
     movementError
   )
 
   alert(
-    `ERRO AO SALVAR HISTÓRICO:\n${movementError.message}`
+    `Estoque atualizado, mas houve erro no histórico:\n\n${movementError.message}`
   )
 
   return
