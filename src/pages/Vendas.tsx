@@ -754,18 +754,21 @@ const updatedProducts =
       .insert(saleData)
       .select()
 
-    if (saleError) {
-      console.error(
-        "ERRO AO SALVAR VENDA:",
-        saleError
-      )
+   if (saleError) {
+  console.error(
+    "ERRO AO SALVAR VENDA:",
+    saleError
+  )
 
-      alert(
-        "O estoque foi atualizado, mas houve erro ao registrar a venda."
-      )
+  alert(
+    `Erro ao registrar a venda: ${saleError.message}`
+  )
 
-      return
-    }
+  return
+}
+
+      
+  
 
     const updatedProducts =
       products.map(
