@@ -673,12 +673,12 @@ const {
 } = await supabase
   .from("stock_movements")
   .insert({
-    product_id: product.id,
-    product_name: product.name,
-    type: "Saída",
-    quantity: quantityToRemove,
-    date: new Date().toISOString(),
-  })
+  product_id: product.id,
+  product_name: product.name,
+  type: "Saída",
+  quantity: quantityToRemove,
+  date: new Date().toISOString(),
+})
   .select()
 
 console.log("MOVIMENTAÇÃO SALVA:", movementData)

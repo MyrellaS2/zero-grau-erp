@@ -222,17 +222,12 @@ function Fiados() {
             quantity:
               quantity,
 
-            previous_stock:
-              previousStock,
-
-            current_stock:
-              currentStock,
+          
 
             date:
               new Date().toISOString(),
 
-            observation:
-              "Devolução por exclusão de fiado",
+          
           })
 
         if (movementError) {
