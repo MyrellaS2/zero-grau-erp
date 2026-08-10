@@ -627,75 +627,78 @@ const updatedProducts =
         return
       }
 
+      
+
       const quantityToRemove =
-        Number(
-          item.stockQuantity ||
-            item.quantity ||
-            0
-        )
+  Number(
+    item.stockQuantity ||
+      item.quantity ||
+      0
+  )
 
-      const newStock =
-        Number(
-          product.stock || 0
-        ) -
-        quantityToRemove
+const newStock =
+  Number(
+    product.stock || 0
+  ) -
+  quantityToRemove
 
-      const {
-        error: stockError,
-      } = await supabase
-        .from("products")
-        .update({
-          stock: newStock,
-        })
-        .eq(
-          "id",
-          product.id
-        )
+const {
+  error: stockError,
+} = await supabase
+  .from("products")
+  .update({
+    stock: newStock,
+  })
+  .eq(
+    "id",
+    product.id
+  )
 
-      if (stockError) {
-        console.error(
-          "ERRO AO ATUALIZAR ESTOQUE:",
-          stockError
-        )
-
-        alert(
-          "Não foi possível atualizar o estoque. A venda não foi registrada."
-        )
-
-        return
-      }
-
-      const {
-        error:
-          movementError,
-      } = await supabase
-        .from(
-          "stock_movements"
-        )
-        .insert({
-          product_id:
-            product.id,
-
-          product_name:
-            product.name,
-
-          type: "Saída",
-
-          quantity:
-            quantityToRemove,
-
-          date:
-            new Date().toISOString(),
-        })
-
-     if (movementError) {
+if (stockError) {
   console.error(
-    "ERRO AO REGISTRAR MOVIMENTAÇÃO:",
-    movementError
+    "ERRO AO ATUALIZAR ESTOQUE:",
+    stockError
   )
 
   alert(
-    `Estoque atualizado, mas houve erro no histórico:\n\n${movementError.message}`
+    "Não foi possível atualizar o estoque."
+  )
+
+  return
+}
+
+const {
+  data: movementData,
+  error: movementError,
+} = await supabase
+  .from("stock_movements")
+  .insert({
+    product_id: product.id,
+    product_name: product.name,
+    type: "Saída",
+    quantity: quantityToRemove,
+    date: new Date().toISOString(),
+  })
+  .select()
+
+console.log(
+  "MOVIMENTAÇÃO:",
+  movementData
+)
+
+console.log(
+  "ERRO MOVIMENTAÇÃO:",
+  movementError
+)
+
+if (movementError) {
+  alert(
+    "ERRO REAL DO HISTÓRICO:\n\n" +
+    JSON.stringify(
+      movementError,
+      null,
+      2
+    )
   )
 
   return
