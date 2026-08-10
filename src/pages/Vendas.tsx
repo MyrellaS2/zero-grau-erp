@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 
@@ -23,6 +22,8 @@ function Vendas() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
+  const [selectedSale, setSelectedSale] = useState<any | null>(null)
+
   useEffect(() => {
     async function loadData() {
       const {
@@ -43,9 +44,7 @@ function Vendas() {
         settingsData.length > 0
       ) {
         setDeliveryFee(
-          Number(
-            settingsData[0].delivery_fee || 0
-          )
+          Number(settingsData[0].delivery_fee || 0)
         )
       }
 
@@ -144,6 +143,31 @@ function Vendas() {
           productSearch.toLowerCase()
         )
     )
+
+  function formatDateTime(dateValue: string) {
+    if (!dateValue) {
+      return "-"
+    }
+
+    const date = new Date(dateValue)
+
+    if (isNaN(date.getTime())) {
+      return "-"
+    }
+
+    return new Intl.DateTimeFormat(
+      "pt-BR",
+      {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }
+    ).format(date)
+  }
 
   function addToCart() {
     const product =
@@ -489,51 +513,35 @@ function Vendas() {
       return
     }
 
-  
-const updatedProducts =
-  products.map(
-    (product) => {
-      const totalQuantitySold =
-        cart
-          .filter(
-            (cartItem) =>
-              cartItem.id ===
-              product.id
-          )
-          .reduce(
-            (
-              total: number,
-              cartItem: any
-            ) =>
-              total +
+    setProducts(
+      products.map(
+        (product) => {
+          const soldProduct =
+            sale.products?.find(
+              (item: any) =>
+                item.id ===
+                product.id
+            )
+
+          if (!soldProduct) {
+            return product
+          }
+
+          return {
+            ...product,
+
+            stock:
               Number(
-                cartItem.stockQuantity ||
-                  cartItem.quantity ||
+                product.stock || 0
+              ) +
+              Number(
+                soldProduct.stockQuantity ||
+                  soldProduct.quantity ||
                   0
               ),
-            0
-          )
-
-      if (totalQuantitySold > 0) {
-        return {
-          ...product,
-
-          stock:
-            Number(
-              product.stock || 0
-            ) -
-            totalQuantitySold,
+          }
         }
-      }
-
-      return product
-    }
-  )
-
-
-
-    setProducts(
-      updatedProducts
+      )
     )
 
     setSales(
@@ -542,6 +550,8 @@ const updatedProducts =
           item.id !== id
       )
     )
+
+    setSelectedSale(null)
 
     alert(
       "Venda excluída e estoque devolvido!"
@@ -627,75 +637,87 @@ const updatedProducts =
         return
       }
 
-      
-
       const quantityToRemove =
-  Number(
-    item.stockQuantity ||
-      item.quantity ||
-      0
-  )
+        Number(
+          item.stockQuantity ||
+            item.quantity ||
+            0
+        )
 
-const newStock =
-  Number(
-    product.stock || 0
-  ) -
-  quantityToRemove
+      const newStock =
+        Number(
+          product.stock || 0
+        ) -
+        quantityToRemove
 
-const {
-  error: stockError,
-} = await supabase
-  .from("products")
-  .update({
-    stock: newStock,
-  })
-  .eq(
-    "id",
-    product.id
-  )
+      const {
+        error: stockError,
+      } = await supabase
+        .from("products")
+        .update({
+          stock: newStock,
+        })
+        .eq(
+          "id",
+          product.id
+        )
 
-if (stockError) {
-  console.error(
-    "ERRO AO ATUALIZAR ESTOQUE:",
-    stockError
-  )
+      if (stockError) {
+        console.error(
+          "ERRO AO ATUALIZAR ESTOQUE:",
+          stockError
+        )
 
-  alert(
-    "Não foi possível atualizar o estoque."
-  )
+        alert(
+          "Não foi possível atualizar o estoque."
+        )
 
-  return
-}
+        return
+      }
 
-const {
-  data: movementData,
-  error: movementError,
-} = await supabase
-  .from("stock_movements")
-  .insert({
-  product_id: product.id,
-  product_name: product.name,
-  type: "Saída",
-  quantity: quantityToRemove,
-  date: new Date().toISOString(),
-})
-  .select()
+      const {
+        data: movementData,
+        error: movementError,
+      } = await supabase
+        .from("stock_movements")
+        .insert({
+          product_id:
+            product.id,
 
-console.log("MOVIMENTAÇÃO SALVA:", movementData)
-console.log("ERRO REAL DO HISTÓRICO:", movementError)
+          product_name:
+            product.name,
 
-if (movementError) {
-  alert(
-    "ERRO REAL DO HISTÓRICO:\n\n" +
-    `Código: ${movementError.code}\n` +
-    `Mensagem: ${movementError.message}\n` +
-    `Detalhes: ${movementError.details}\n` +
-    `Hint: ${movementError.hint}`
-  )
+          type: "Saída",
 
-  return
-}
+          quantity:
+            quantityToRemove,
 
+          date:
+            new Date().toISOString(),
+        })
+        .select()
+
+      console.log(
+        "MOVIMENTAÇÃO SALVA:",
+        movementData
+      )
+
+      console.log(
+        "ERRO REAL DO HISTÓRICO:",
+        movementError
+      )
+
+      if (movementError) {
+        alert(
+          "ERRO AO SALVAR O HISTÓRICO:\n\n" +
+          `Código: ${movementError.code}\n` +
+          `Mensagem: ${movementError.message}\n` +
+          `Detalhes: ${movementError.details}\n` +
+          `Hint: ${movementError.hint}`
+        )
+
+        return
+      }
     }
 
     const saleData = {
@@ -750,21 +772,18 @@ if (movementError) {
       .insert(saleData)
       .select()
 
-   if (saleError) {
-  console.error(
-    "ERRO AO SALVAR VENDA:",
-    saleError
-  )
+    if (saleError) {
+      console.error(
+        "ERRO AO SALVAR VENDA:",
+        saleError
+      )
 
-  alert(
-    `Erro ao registrar a venda: ${saleError.message}`
-  )
+      alert(
+        `Erro ao registrar a venda: ${saleError.message}`
+      )
 
-  return
-}
-
-      
-  
+      return
+    }
 
     const updatedProducts =
       products.map(
@@ -875,29 +894,37 @@ if (movementError) {
     )
 
   const periodTotal =
-  paidSales.reduce(
-    (total, sale) =>
-      total +
-      Number(sale.total || 0) -
-      Number(sale.delivery_fee || 0),
-    0
-  )
+    paidSales.reduce(
+      (total, sale) =>
+        total +
+        Number(
+          sale.total || 0
+        ) -
+        Number(
+          sale.delivery_fee || 0
+        ),
+      0
+    )
 
-const periodProfit =
-  paidSales.reduce(
-    (total, sale) =>
-      total +
-      Number(sale.profit || 0),
-    0
-  )
+  const periodProfit =
+    paidSales.reduce(
+      (total, sale) =>
+        total +
+        Number(
+          sale.profit || 0
+        ),
+      0
+    )
 
-const periodDeliveryFees =
-  paidSales.reduce(
-    (total, sale) =>
-      total +
-      Number(sale.delivery_fee || 0),
-    0
-  )
+  const periodDeliveryFees =
+    paidSales.reduce(
+      (total, sale) =>
+        total +
+        Number(
+          sale.delivery_fee || 0
+        ),
+      0
+    )
 
   const periodQuantity =
     paidSales.reduce(
@@ -941,7 +968,7 @@ const periodDeliveryFees =
         Controle de vendas da ZERO GRAU
       </p>
 
-      <div className="grid grid-cols-2 gap-6 mt-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="font-bold text-lg">
             🛒 Nova venda
@@ -1226,7 +1253,7 @@ const periodDeliveryFees =
           🔎 Pesquisar vendas
         </h2>
 
-        <div className="flex gap-4 mt-4">
+        <div className="flex flex-wrap gap-4 mt-4">
           <input
             type="date"
             className="border p-2 rounded"
@@ -1261,7 +1288,7 @@ const periodDeliveryFees =
         </div>
       </div>
 
-     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="text-gray-500">
             💰 Faturamento
@@ -1277,19 +1304,20 @@ const periodDeliveryFees =
           <h2 className="text-gray-500">
             📈 Lucro
           </h2>
-          <div className="bg-white p-6 rounded-xl shadow">
-  <h2 className="text-gray-500">
-    🚚 Fretes
-  </h2>
-
-  <p className="text-2xl font-bold mt-2">
-    R$ {periodDeliveryFees.toFixed(2)}
-  </p>
-</div>
 
           <p className="text-2xl font-bold mt-2">
             R${" "}
             {periodProfit.toFixed(2)}
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow">
+          <h2 className="text-gray-500">
+            🚚 Fretes
+          </h2>
+
+          <p className="text-2xl font-bold mt-2">
+            R$ {periodDeliveryFees.toFixed(2)}
           </p>
         </div>
 
@@ -1309,89 +1337,78 @@ const periodDeliveryFees =
           Histórico de vendas
         </h2>
 
+        <p className="text-sm text-gray-500 mt-1">
+          Clique em uma venda para ver todos os detalhes.
+        </p>
+
         <div className="mt-4 space-y-3">
           {filteredSales.map(
             (sale) => (
-              <div
+              <button
                 key={sale.id}
-                className="border rounded-lg p-4 flex justify-between"
+                onClick={() =>
+                  setSelectedSale(sale)
+                }
+                className="w-full text-left border rounded-lg p-4 hover:bg-gray-50 transition"
               >
-                <div>
-                  <p className="font-bold">
-                    {sale.product}
-                  </p>
+                <div className="flex justify-between gap-4">
+                  <div>
+                    <p className="font-bold">
+                      {sale.product}
+                    </p>
 
-                  <p className="text-gray-500">
-                    Quantidade:{" "}
-                    {Number(
-                      sale.quantity || 0
-                    )}
-                  </p>
-
-                  <p className="text-gray-500">
-                    📅{" "}
-                    {new Date(
-                      sale.date
-                    ).toLocaleString(
-                      "pt-BR"
-                    )}
-                  </p>
-
-                  <p className="text-gray-500">
-                    👤{" "}
-                    {sale.customer ||
-                      "Cliente não informado"}
-                  </p>
-
-                  <p className="text-gray-500">
-                    💳{" "}
-                    {sale.payment}
-                  </p>
-
-                  <p className="text-gray-500">
-                    Status:{" "}
-                    {sale.status}
-                  </p>
-
-                  {Number(
-                    sale.delivery_fee || 0
-                  ) > 0 && (
                     <p className="text-gray-500">
-                      🚚 Frete: R${" "}
+                      Quantidade:{" "}
                       {Number(
-                        sale.delivery_fee
+                        sale.quantity || 0
+                      )}
+                    </p>
+
+                    <p className="text-gray-500">
+                      📅{" "}
+                      {formatDateTime(
+                        sale.date
+                      )}
+                    </p>
+
+                    <p className="text-gray-500">
+                      👤{" "}
+                      {sale.customer ||
+                        "Cliente não informado"}
+                    </p>
+
+                    <p className="text-gray-500">
+                      💳{" "}
+                      {sale.payment}
+                    </p>
+
+                    <p className="text-gray-500">
+                      Status:{" "}
+                      {sale.status}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="font-bold">
+                      R${" "}
+                      {Number(
+                        sale.total || 0
                       ).toFixed(2)}
                     </p>
-                  )}
+
+                    <p className="text-green-600">
+                      Lucro: R${" "}
+                      {Number(
+                        sale.profit || 0
+                      ).toFixed(2)}
+                    </p>
+
+                    <p className="text-blue-700 text-sm mt-2">
+                      Ver detalhes →
+                    </p>
+                  </div>
                 </div>
-
-                <div className="text-right">
-                  <p className="font-bold">
-                    R${" "}
-                    {Number(
-                      sale.total || 0
-                    ).toFixed(2)}
-                  </p>
-
-                  <p className="text-green-600">
-                    Lucro: R${" "}
-                    {Number(
-                      sale.profit || 0
-                    ).toFixed(2)}
-                  </p>
-
-                  <button
-                    onClick={() =>
-                      deleteSale(
-                        sale.id
-                      )
-                    }
-                    className="mt-2 bg-red-600 text-white px-3 py-1 rounded"
-                  >
-                    🗑 Excluir
-                  </button>
-                </div>
-              </div>
+              </button>
             )
           )}
 
@@ -1402,6 +1419,337 @@ const periodDeliveryFees =
           )}
         </div>
       </div>
+
+      {selectedSale && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b flex justify-between items-start gap-4">
+              <div>
+                <h2 className="text-xl font-bold">
+                  Detalhes da venda
+                </h2>
+
+                <p className="text-gray-500 mt-1">
+                  📅{" "}
+                  {formatDateTime(
+                    selectedSale.date
+                  )}
+                </p>
+              </div>
+
+              <button
+                onClick={() =>
+                  setSelectedSale(null)
+                }
+                className="text-gray-500 hover:text-black text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">
+                    Cliente
+                  </p>
+
+                  <p className="font-semibold">
+                    {selectedSale.customer ||
+                      "Cliente não informado"}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">
+                    Pagamento
+                  </p>
+
+                  <p className="font-semibold">
+                    {selectedSale.payment}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">
+                    Status
+                  </p>
+
+                  <p
+                    className={
+                      selectedSale.status ===
+                      "Pago"
+                        ? "font-semibold text-green-600"
+                        : "font-semibold text-orange-600"
+                    }
+                  >
+                    {selectedSale.status}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-500">
+                    Data e horário
+                  </p>
+
+                  <p className="font-semibold">
+                    {formatDateTime(
+                      selectedSale.date
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <h3 className="font-bold text-lg mb-3">
+                Produtos da venda
+              </h3>
+
+              <div className="space-y-3">
+                {selectedSale.products &&
+                selectedSale.products.length > 0 ? (
+                  selectedSale.products.map(
+                    (item: any, index: number) => {
+                      const itemQuantity =
+                        Number(
+                          item.quantity || 0
+                        )
+
+                      const itemSalePrice =
+                        Number(
+                          item.salePrice || 0
+                        )
+
+                      const itemPurchasePrice =
+                        Number(
+                          item.purchasePrice || 0
+                        )
+
+                      const itemTotal =
+                        Number(
+                          item.total ||
+                            itemSalePrice *
+                              itemQuantity
+                        )
+
+                      const itemProfit =
+                        (
+                          itemSalePrice -
+                          itemPurchasePrice
+                        ) *
+                        itemQuantity
+
+                      return (
+                        <div
+                          key={`${item.id}-${item.saleType}-${index}`}
+                          className="border rounded-xl p-4"
+                        >
+                          <div className="flex justify-between gap-4">
+                            <div>
+                              <p className="font-bold">
+                                {item.displayName ||
+                                  item.name}
+                              </p>
+
+                              <p className="text-gray-500 mt-1">
+                                {itemQuantity}{" "}
+                                {item.saleType ===
+                                "Fardo"
+                                  ? "fardo(s)"
+                                  : "unidade(s)"}
+                              </p>
+                            </div>
+
+                            <div className="text-right">
+                              <p className="font-bold">
+                                R${" "}
+                                {itemTotal.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                            <div className="bg-gray-50 rounded-lg p-3">
+                              <p className="text-xs text-gray-500">
+                                Preço de venda
+                              </p>
+
+                              <p className="font-semibold">
+                                R${" "}
+                                {itemSalePrice.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="bg-gray-50 rounded-lg p-3">
+                              <p className="text-xs text-gray-500">
+                                Custo
+                              </p>
+
+                              <p className="font-semibold">
+                                R${" "}
+                                {itemPurchasePrice.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="bg-green-50 rounded-lg p-3">
+                              <p className="text-xs text-gray-500">
+                                Lucro deste produto
+                              </p>
+
+                              <p className="font-bold text-green-700">
+                                R${" "}
+                                {itemProfit.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+                  )
+                ) : (
+                  <p className="text-gray-500">
+                    Os detalhes dos produtos não foram salvos nesta venda.
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t mt-6 pt-5">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+
+                  <span>
+                    R${" "}
+                    {(
+                      Number(
+                        selectedSale.total || 0
+                      ) -
+                      Number(
+                        selectedSale.delivery_fee ||
+                          0
+                      )
+                    ).toFixed(2)}
+                  </span>
+                </div>
+
+                {Number(
+                  selectedSale.delivery_fee || 0
+                ) > 0 && (
+                  <div className="flex justify-between text-gray-600 mt-2">
+                    <span>🚚 Frete</span>
+
+                    <span>
+                      R${" "}
+                      {Number(
+                        selectedSale.delivery_fee
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {selectedSale.products &&
+                  selectedSale.products.length > 0 && (
+                    <div className="flex justify-between text-green-600 mt-2">
+                      <span>
+                        Lucro dos produtos
+                      </span>
+
+                      <span>
+                        R${" "}
+                        {selectedSale.products
+                          .reduce(
+                            (
+                              total: number,
+                              item: any
+                            ) => {
+                              const salePrice =
+                                Number(
+                                  item.salePrice ||
+                                    0
+                                )
+
+                              const purchasePrice =
+                                Number(
+                                  item.purchasePrice ||
+                                    0
+                                )
+
+                              const quantity =
+                                Number(
+                                  item.quantity ||
+                                    0
+                                )
+
+                              return (
+                                total +
+                                (
+                                  salePrice -
+                                  purchasePrice
+                                ) *
+                                  quantity
+                              )
+                            },
+                            0
+                          )
+                          .toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                <div className="flex justify-between font-bold text-xl mt-4">
+                  <span>Total</span>
+
+                  <span>
+                    R${" "}
+                    {Number(
+                      selectedSale.total || 0
+                    ).toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-green-700 font-bold mt-2">
+                  <span>Lucro da venda</span>
+
+                  <span>
+                    R${" "}
+                    {Number(
+                      selectedSale.profit || 0
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() =>
+                    setSelectedSale(null)
+                  }
+                  className="border px-4 py-2 rounded-lg"
+                >
+                  Fechar
+                </button>
+
+                <button
+                  onClick={() =>
+                    deleteSale(
+                      selectedSale.id
+                    )
+                  }
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg"
+                >
+                  🗑 Excluir venda
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

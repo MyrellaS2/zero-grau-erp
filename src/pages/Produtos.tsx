@@ -399,16 +399,7 @@ if (movementError) {
 }
 
 
-  if(movementError){
 
-    console.error(
-      "ERRO AO SALVAR MOVIMENTAÇÃO:",
-      movementError
-    )
-
-    alert("Estoque atualizado, mas houve erro ao salvar o histórico")
-
-  }
 
 
   // Atualiza o produto na tela

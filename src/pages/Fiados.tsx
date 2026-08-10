@@ -7,6 +7,8 @@ function Fiados() {
   const [payment, setPayment] = useState("")
   const [selectedId, setSelectedId] =
     useState<number | null>(null)
+    const [selectedFiado, setSelectedFiado] =
+  useState<any | null>(null)
 
   useEffect(() => {
     const loadSales = async () => {
@@ -349,11 +351,16 @@ function Fiados() {
                   <p className="text-gray-500">
                     📅{" "}
                     {sale.date
-                      ? new Date(
-                          sale.date
-                        ).toLocaleString(
-                          "pt-BR"
-                        )
+                      ? new Intl.DateTimeFormat(
+  "pt-BR",
+  {
+    timeZone: "America/Sao_Paulo",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }
+).format(
+  new Date(sale.date)
+)
                       : "-"}
                   </p>
                 </div>
@@ -369,6 +376,14 @@ function Fiados() {
                   <p className="text-red-600">
                     Pendente
                   </p>
+                  <button
+  onClick={() =>
+    setSelectedFiado(sale)
+  }
+  className="mt-2 bg-blue-700 text-white px-3 py-1 rounded"
+>
+  Ver detalhes
+</button>
 
                   <button
                     onClick={() =>
@@ -450,6 +465,183 @@ function Fiados() {
           </button>
         </div>
       )}
+      {selectedFiado && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
+
+      <div className="p-6 border-b flex justify-between">
+        <div>
+          <h2 className="text-xl font-bold">
+            Detalhes do fiado
+          </h2>
+
+          <p className="text-gray-500 mt-1">
+            {selectedFiado.customer ||
+              "Cliente não informado"}
+          </p>
+        </div>
+
+        <button
+          onClick={() =>
+            setSelectedFiado(null)
+          }
+          className="text-gray-500 text-2xl"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="p-6">
+
+        <p className="text-gray-500 mb-4">
+          Data:{" "}
+          {selectedFiado.date
+            ? new Intl.DateTimeFormat(
+                "pt-BR",
+                {
+                  timeZone:
+                    "America/Sao_Paulo",
+                  dateStyle: "short",
+                  timeStyle: "medium",
+                }
+              ).format(
+                new Date(
+                  selectedFiado.date
+                )
+              )
+            : "-"}
+        </p>
+
+        <h3 className="font-bold text-lg mb-3">
+          Produtos
+        </h3>
+
+        <div className="space-y-3">
+
+          {selectedFiado.products &&
+          selectedFiado.products.length > 0 ? (
+
+            selectedFiado.products.map(
+              (item: any, index: number) => {
+
+                const quantity =
+                  Number(
+                    item.quantity || 0
+                  )
+
+                const salePrice =
+                  Number(
+                    item.salePrice || 0
+                  )
+
+                const purchasePrice =
+                  Number(
+                    item.purchasePrice || 0
+                  )
+
+                const total =
+                  Number(
+                    item.total ||
+                      salePrice * quantity
+                  )
+
+                const profit =
+                  (salePrice -
+                    purchasePrice) *
+                  quantity
+
+                return (
+                  <div
+                    key={`${item.id}-${index}`}
+                    className="border rounded-xl p-4"
+                  >
+
+                    <p className="font-bold">
+                      {item.displayName ||
+                        item.name}
+                    </p>
+
+                    <p className="text-gray-500">
+                      Quantidade: {quantity}{" "}
+                      {item.saleType ===
+                      "Fardo"
+                        ? "fardo(s)"
+                        : "unidade(s)"}
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+
+                      <div className="bg-gray-50 p-3 rounded">
+                        <p className="text-xs text-gray-500">
+                          Venda
+                        </p>
+                        <p className="font-bold">
+                          R${" "}
+                          {salePrice.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="bg-gray-50 p-3 rounded">
+                        <p className="text-xs text-gray-500">
+                          Custo
+                        </p>
+                        <p className="font-bold">
+                          R${" "}
+                          {purchasePrice.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="bg-green-50 p-3 rounded">
+                        <p className="text-xs text-gray-500">
+                          Lucro
+                        </p>
+                        <p className="font-bold text-green-700">
+                          R${" "}
+                          {profit.toFixed(2)}
+                        </p>
+                      </div>
+
+                    </div>
+
+                    <p className="font-bold mt-3">
+                      Total: R${" "}
+                      {total.toFixed(2)}
+                    </p>
+
+                  </div>
+                )
+              }
+            )
+
+          ) : (
+            <p className="text-gray-500">
+              Os produtos desta venda não
+              foram salvos.
+            </p>
+          )}
+
+        </div>
+
+        <div className="border-t mt-6 pt-4">
+
+          <div className="flex justify-between">
+            <span>Total</span>
+
+            <span className="font-bold">
+              R${" "}
+              {Number(
+                selectedFiado.total || 0
+              ).toFixed(2)}
+            </span>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+)}
     </div>
   )
 }
