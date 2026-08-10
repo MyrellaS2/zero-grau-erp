@@ -875,24 +875,29 @@ if (movementError) {
     )
 
   const periodTotal =
-    paidSales.reduce(
-      (total, sale) =>
-        total +
-        Number(
-          sale.total || 0
-        ),
-      0
-    )
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(sale.total || 0) -
+      Number(sale.delivery_fee || 0),
+    0
+  )
 
-  const periodProfit =
-    paidSales.reduce(
-      (total, sale) =>
-        total +
-        Number(
-          sale.profit || 0
-        ),
-      0
-    )
+const periodProfit =
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(sale.profit || 0),
+    0
+  )
+
+const periodDeliveryFees =
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(sale.delivery_fee || 0),
+    0
+  )
 
   const periodQuantity =
     paidSales.reduce(
@@ -1256,7 +1261,7 @@ if (movementError) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mt-6">
+     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="text-gray-500">
             💰 Faturamento
@@ -1272,6 +1277,15 @@ if (movementError) {
           <h2 className="text-gray-500">
             📈 Lucro
           </h2>
+          <div className="bg-white p-6 rounded-xl shadow">
+  <h2 className="text-gray-500">
+    🚚 Fretes
+  </h2>
+
+  <p className="text-2xl font-bold mt-2">
+    R$ {periodDeliveryFees.toFixed(2)}
+  </p>
+</div>
 
           <p className="text-2xl font-bold mt-2">
             R${" "}

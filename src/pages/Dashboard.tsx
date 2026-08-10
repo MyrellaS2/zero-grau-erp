@@ -58,21 +58,66 @@ function Dashboard() {
     0
   )
 
-  const totalSales = sales.reduce(
+  const paidSales = sales.filter(
+  (sale) =>
+    sale.status === "Pago"
+)
+
+const totalSales =
+  paidSales.reduce(
     (total, sale) =>
-      total + Number(sale.total || 0),
+      total +
+      Number(sale.total || 0) -
+      Number(sale.delivery_fee || 0),
     0
   )
 
-  const totalProfit = sales.reduce(
+  const totalProfit =
+  paidSales.reduce(
     (total, sale) =>
-      total + Number(sale.profit || 0),
+      total +
+      Number(sale.profit || 0),
+    0
+  )
+  const totalDeliveryFees =
+  paidSales.reduce(
+    (total, sale) =>
+      total +
+      Number(
+        sale.delivery_fee || 0
+      ),
     0
   )
 
-  const totalQuantitySold = sales.reduce(
-    (total, sale) =>
-      total + Number(sale.quantity || 0),
+  const totalQuantitySold =
+  paidSales.reduce(
+    (total, sale) => {
+      if (!sale.products) {
+        return (
+          total +
+          Number(
+            sale.quantity || 0
+          )
+        )
+      }
+
+      return (
+        total +
+        sale.products.reduce(
+          (
+            sum: number,
+            item: any
+          ) =>
+            sum +
+            Number(
+              item.stockQuantity ||
+                item.quantity ||
+                0
+            ),
+          0
+        )
+      )
+    },
     0
   )
 
@@ -140,11 +185,20 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="text-gray-500">
             🛒 Itens vendidos
           </h2>
+          <div className="bg-white p-6 rounded-xl shadow">
+  <h2 className="text-gray-500">
+    🚚 Total de fretes
+  </h2>
+
+  <p className="text-2xl font-bold mt-2">
+    R$ {totalDeliveryFees.toFixed(2)}
+  </p>
+</div>
 
           <p className="text-2xl font-bold mt-2">
             {totalQuantitySold}
