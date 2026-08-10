@@ -689,17 +689,17 @@ const updatedProducts =
         })
 
       if (movementError) {
-        console.error(
-          "ERRO AO REGISTRAR MOVIMENTAÇÃO:",
-          movementError
-        )
+  console.error(
+    "ERRO AO REGISTRAR MOVIMENTAÇÃO:",
+    movementError
+  )
 
-        alert(
-          "O estoque foi atualizado, mas houve erro ao registrar a movimentação."
-        )
+  alert(
+    `ERRO AO SALVAR HISTÓRICO:\n${movementError.message}`
+  )
 
-        return
-      }
+  return
+}
     }
 
     const saleData = {
