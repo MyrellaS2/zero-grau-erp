@@ -236,6 +236,8 @@ sale_price_package:
 
     salePrice:
       data[0].sale_price,
+      salePricePackage:
+  data[0].sale_price_package,
 
     entryType:
       data[0].entry_type,
@@ -372,19 +374,29 @@ async function addStock(
 
 
   // Salva a movimentação no Supabase
-  const { data: movementData, error: movementError } =
-    await supabase
-      .from("stock_movements")
-     .insert({
-  product_id: product.id,
-  product_name: product.name,
-  type: type,
-  quantity: quantity,
-  previous_stock: previousStock,
-  current_stock: currentStock,
-  date: new Date().toISOString()
-})
-      .select()
+ const { data: movementData, error: movementError } =
+  await supabase
+    .from("stock_movements")
+    .insert({
+      product_id: product.id,
+      product_name: product.name,
+      type: type,
+      quantity: quantity,
+      date: new Date().toISOString(),
+    })
+    .select()
+
+if (movementError) {
+  console.error(
+    "ERRO AO SALVAR MOVIMENTAÇÃO:",
+    movementError
+  )
+
+  alert(
+    "Estoque atualizado, mas houve erro ao salvar o histórico:\n\n" +
+      movementError.message
+  )
+}
 
 
   if(movementError){
