@@ -5,10 +5,10 @@ import { supabase } from "../lib/supabase"
 function Fiados() {
   const [sales, setSales] = useState<any[]>([])
   const [payment, setPayment] = useState("")
-  const [selectedId, setSelectedId] =
-    useState<number | null>(null)
-    const [selectedFiado, setSelectedFiado] =
-  useState<any | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [discount, setDiscount] = useState("")
+  const [receiving, setReceiving] = useState(false)
+  const [selectedFiado, setSelectedFiado] = useState<any | null>(null)
 
   useEffect(() => {
     const loadSales = async () => {
@@ -33,42 +33,76 @@ function Fiados() {
     loadSales()
   }, [])
 
-  const pendingFiados =
-    sales.filter(
-      (sale) =>
-        sale.payment === "Fiado" &&
-        sale.status === "Pendente"
-    )
+  const pendingFiados = sales.filter(
+    (sale) =>
+      sale.payment === "Fiado" &&
+      sale.status === "Pendente"
+  )
 
-  const totalFiado =
-    pendingFiados.reduce(
-      (total, sale) =>
-        total +
-        Number(sale.total || 0),
-      0
-    )
+  const totalFiado = pendingFiados.reduce(
+    (total, sale) =>
+      total + Number(sale.total || 0),
+    0
+  )
 
   async function receiveFiado() {
+    if (selectedId === null) {
+      alert("Selecione um fiado.")
+      return
+    }
+
     if (!payment) {
+      alert("Escolha a forma de pagamento!")
+      return
+    }
+
+    const sale = sales.find(
+      (item) => item.id === selectedId
+    )
+
+    if (!sale) {
+      alert("Fiado não encontrado.")
+      return
+    }
+
+    const originalTotal = Number(
+      sale.total || 0
+    )
+
+    const discountValue = Number(
+      discount.replace(",", ".") || 0
+    )
+
+    if (
+      isNaN(discountValue) ||
+      discountValue < 0
+    ) {
+      alert("Informe um desconto válido.")
+      return
+    }
+
+    if (discountValue > originalTotal) {
       alert(
-        "Escolha a forma de pagamento!"
+        "O desconto não pode ser maior que o valor do fiado."
       )
       return
     }
 
-    if (selectedId === null) {
-      return
-    }
+    const receivedTotal =
+      originalTotal - discountValue
 
-    const { data, error } =
-      await supabase
-        .from("sales")
-        .update({
-          payment: payment,
-          status: "Pago",
-        })
-        .eq("id", selectedId)
-        .select()
+    setReceiving(true)
+
+    const { data, error } = await supabase
+      .from("sales")
+      .update({
+        payment: payment,
+        status: "Pago",
+        discount: discountValue,
+        received_total: receivedTotal,
+      })
+      .eq("id", selectedId)
+      .select()
 
     if (error) {
       console.error(
@@ -77,31 +111,46 @@ function Fiados() {
       )
 
       alert(
-        "Erro ao registrar pagamento."
+        `Erro ao registrar pagamento:\n${error.message}`
       )
 
+      setReceiving(false)
       return
     }
 
-    if (data && data.length > 0) {
-      setSales(
-        sales.map((sale) =>
-          sale.id === selectedId
-            ? data[0]
-            : sale
-        )
+    if (!data || data.length === 0) {
+      alert(
+        "O pagamento não foi atualizado. Verifique as permissões do Supabase."
       )
+
+      setReceiving(false)
+      return
     }
 
+    setSales(
+      sales.map((sale) =>
+        sale.id === selectedId
+          ? data[0]
+          : sale
+      )
+    )
+
     setPayment("")
+    setDiscount("")
     setSelectedId(null)
 
-    alert("Fiado recebido!")
+    setReceiving(false)
+
+    alert(
+      `Fiado recebido!\n\nValor original: R$ ${originalTotal.toFixed(
+        2
+      )}\nDesconto: R$ ${discountValue.toFixed(
+        2
+      )}\nRecebido: R$ ${receivedTotal.toFixed(2)}`
+    )
   }
 
-  async function deleteFiado(
-    id: number
-  ) {
+  async function deleteFiado(id: number) {
     const confirmDelete =
       window.confirm(
         "Excluir esse fiado e devolver o estoque?"
@@ -111,16 +160,12 @@ function Fiados() {
       return
     }
 
-    const sale =
-      sales.find(
-        (item) =>
-          item.id === id
-      )
+    const sale = sales.find(
+      (item) => item.id === id
+    )
 
     if (!sale) {
-      alert(
-        "Fiado não encontrado."
-      )
+      alert("Fiado não encontrado.")
       return
     }
 
@@ -142,10 +187,7 @@ function Fiados() {
         } = await supabase
           .from("products")
           .select("stock")
-          .eq(
-            "id",
-            soldProduct.id
-          )
+          .eq("id", soldProduct.id)
           .single()
 
         if (productError) {
@@ -161,34 +203,24 @@ function Fiados() {
           return
         }
 
-        const previousStock =
-          Number(
-            productData?.stock || 0
-          )
+        const previousStock = Number(
+          productData?.stock || 0
+        )
 
-        const quantity =
-          Number(
-            soldProduct.quantity || 0
-          )
+        const quantity = Number(
+          soldProduct.quantity || 0
+        )
 
         const currentStock =
           previousStock + quantity
 
-        /*
-         * Atualiza estoque.
-         */
-
-        const {
-          error: stockError,
-        } = await supabase
-          .from("products")
-          .update({
-            stock: currentStock,
-          })
-          .eq(
-            "id",
-            soldProduct.id
-          )
+        const { error: stockError } =
+          await supabase
+            .from("products")
+            .update({
+              stock: currentStock,
+            })
+            .eq("id", soldProduct.id)
 
         if (stockError) {
           console.error(
@@ -213,23 +245,11 @@ function Fiados() {
         } = await supabase
           .from("stock_movements")
           .insert({
-            product_id:
-              soldProduct.id,
-
-            product_name:
-              soldProduct.name,
-
+            product_id: soldProduct.id,
+            product_name: soldProduct.name,
             type: "Entrada",
-
-            quantity:
-              quantity,
-
-          
-
-            date:
-              new Date().toISOString(),
-
-          
+            quantity: quantity,
+            date: new Date().toISOString(),
           })
 
         if (movementError) {
@@ -252,9 +272,7 @@ function Fiados() {
      * exclui a venda.
      */
 
-    const {
-      error,
-    } = await supabase
+    const { error } = await supabase
       .from("sales")
       .delete()
       .eq("id", id)
@@ -274,19 +292,38 @@ function Fiados() {
 
     setSales(
       sales.filter(
-        (sale) =>
-          sale.id !== id
+        (sale) => sale.id !== id
       )
     )
 
     if (selectedId === id) {
       setSelectedId(null)
       setPayment("")
+      setDiscount("")
+    }
+
+    if (
+      selectedFiado &&
+      selectedFiado.id === id
+    ) {
+      setSelectedFiado(null)
     }
 
     alert(
       "Fiado excluído e estoque devolvido!"
     )
+  }
+
+  function openReceive(sale: any) {
+    setSelectedId(sale.id)
+    setPayment("")
+    setDiscount("")
+  }
+
+  function closeReceive() {
+    setSelectedId(null)
+    setPayment("")
+    setDiscount("")
   }
 
   return (
@@ -298,6 +335,8 @@ function Fiados() {
       <p className="mt-2 text-gray-500">
         Controle de clientes pendentes
       </p>
+
+      {/* RESUMO */}
 
       <div className="mt-6 grid grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow">
@@ -316,11 +355,12 @@ function Fiados() {
           </p>
 
           <h2 className="text-2xl font-bold text-red-600">
-            R${" "}
-            {totalFiado.toFixed(2)}
+            R$ {totalFiado.toFixed(2)}
           </h2>
         </div>
       </div>
+
+      {/* LISTA DE FIADOS */}
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
         <h2 className="font-bold text-lg">
@@ -352,15 +392,16 @@ function Fiados() {
                     📅{" "}
                     {sale.date
                       ? new Intl.DateTimeFormat(
-  "pt-BR",
-  {
-    timeZone: "America/Sao_Paulo",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }
-).format(
-  new Date(sale.date)
-)
+                          "pt-BR",
+                          {
+                            timeZone:
+                              "America/Sao_Paulo",
+                            dateStyle: "short",
+                            timeStyle: "medium",
+                          }
+                        ).format(
+                          new Date(sale.date)
+                        )
                       : "-"}
                   </p>
                 </div>
@@ -376,36 +417,39 @@ function Fiados() {
                   <p className="text-red-600">
                     Pendente
                   </p>
-                  <button
-  onClick={() =>
-    setSelectedFiado(sale)
-  }
-  className="mt-2 bg-blue-700 text-white px-3 py-1 rounded"
->
-  Ver detalhes
-</button>
 
-                  <button
-                    onClick={() =>
-                      setSelectedId(
-                        sale.id
-                      )
-                    }
-                    className="mt-2 bg-green-600 text-white px-3 py-1 rounded"
-                  >
-                    Receber
-                  </button>
+                  <div className="flex flex-wrap justify-end gap-2 mt-2">
+                    <button
+                      onClick={() =>
+                        setSelectedFiado(
+                          sale
+                        )
+                      }
+                      className="bg-blue-700 text-white px-3 py-1 rounded"
+                    >
+                      Ver detalhes
+                    </button>
 
-                  <button
-                    onClick={() =>
-                      deleteFiado(
-                        sale.id
-                      )
-                    }
-                    className="mt-2 ml-2 bg-red-600 text-white px-3 py-1 rounded"
-                  >
-                    🗑
-                  </button>
+                    <button
+                      onClick={() =>
+                        openReceive(sale)
+                      }
+                      className="bg-green-600 text-white px-3 py-1 rounded"
+                    >
+                      Receber
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        deleteFiado(
+                          sale.id
+                        )
+                      }
+                      className="bg-red-600 text-white px-3 py-1 rounded"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -419,229 +463,392 @@ function Fiados() {
         </div>
       </div>
 
-      {selectedId !== null && (
-        <div className="mt-6 bg-white p-6 rounded-xl shadow">
-          <h2 className="font-bold text-lg">
-            Receber pagamento
-          </h2>
+      {/* RECEBIMENTO */}
 
-          <select
-            className="border p-2 rounded w-full mt-4"
-            value={payment}
-            onChange={(e) =>
-              setPayment(
-                e.target.value
-              )
-            }
-          >
-            <option value="">
-              Forma de recebimento
-            </option>
-
-            <option value="Pix">
-              Pix
-            </option>
-
-            <option value="Dinheiro">
-              Dinheiro
-            </option>
-
-            <option value="Débito">
-              Cartão de débito
-            </option>
-
-            <option value="Crédito">
-              Cartão de crédito
-            </option>
-          </select>
-
-          <button
-            onClick={
-              receiveFiado
-            }
-            className="mt-4 bg-blue-700 text-white px-5 py-2 rounded"
-          >
-            Confirmar recebimento
-          </button>
-        </div>
-      )}
-      {selectedFiado && (
-  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
-
-      <div className="p-6 border-b flex justify-between">
-        <div>
-          <h2 className="text-xl font-bold">
-            Detalhes do fiado
-          </h2>
-
-          <p className="text-gray-500 mt-1">
-            {selectedFiado.customer ||
-              "Cliente não informado"}
-          </p>
-        </div>
-
-        <button
-          onClick={() =>
-            setSelectedFiado(null)
-          }
-          className="text-gray-500 text-2xl"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="p-6">
-
-        <p className="text-gray-500 mb-4">
-          Data:{" "}
-          {selectedFiado.date
-            ? new Intl.DateTimeFormat(
-                "pt-BR",
-                {
-                  timeZone:
-                    "America/Sao_Paulo",
-                  dateStyle: "short",
-                  timeStyle: "medium",
-                }
-              ).format(
-                new Date(
-                  selectedFiado.date
-                )
-              )
-            : "-"}
-        </p>
-
-        <h3 className="font-bold text-lg mb-3">
-          Produtos
-        </h3>
-
-        <div className="space-y-3">
-
-          {selectedFiado.products &&
-          selectedFiado.products.length > 0 ? (
-
-            selectedFiado.products.map(
-              (item: any, index: number) => {
-
-                const quantity =
-                  Number(
-                    item.quantity || 0
-                  )
-
-                const salePrice =
-                  Number(
-                    item.salePrice || 0
-                  )
-
-                const purchasePrice =
-                  Number(
-                    item.purchasePrice || 0
-                  )
-
-                const total =
-                  Number(
-                    item.total ||
-                      salePrice * quantity
-                  )
-
-                const profit =
-                  (salePrice -
-                    purchasePrice) *
-                  quantity
-
-                return (
-                  <div
-                    key={`${item.id}-${index}`}
-                    className="border rounded-xl p-4"
-                  >
-
-                    <p className="font-bold">
-                      {item.displayName ||
-                        item.name}
-                    </p>
-
-                    <p className="text-gray-500">
-                      Quantidade: {quantity}{" "}
-                      {item.saleType ===
-                      "Fardo"
-                        ? "fardo(s)"
-                        : "unidade(s)"}
-                    </p>
-
-                    <div className="grid grid-cols-3 gap-3 mt-3">
-
-                      <div className="bg-gray-50 p-3 rounded">
-                        <p className="text-xs text-gray-500">
-                          Venda
-                        </p>
-                        <p className="font-bold">
-                          R${" "}
-                          {salePrice.toFixed(2)}
-                        </p>
-                      </div>
-
-                      <div className="bg-gray-50 p-3 rounded">
-                        <p className="text-xs text-gray-500">
-                          Custo
-                        </p>
-                        <p className="font-bold">
-                          R${" "}
-                          {purchasePrice.toFixed(2)}
-                        </p>
-                      </div>
-
-                      <div className="bg-green-50 p-3 rounded">
-                        <p className="text-xs text-gray-500">
-                          Lucro
-                        </p>
-                        <p className="font-bold text-green-700">
-                          R${" "}
-                          {profit.toFixed(2)}
-                        </p>
-                      </div>
-
-                    </div>
-
-                    <p className="font-bold mt-3">
-                      Total: R${" "}
-                      {total.toFixed(2)}
-                    </p>
-
-                  </div>
-                )
-              }
+      {selectedId !== null &&
+        (() => {
+          const selectedSale =
+            sales.find(
+              (sale) =>
+                sale.id === selectedId
             )
 
-          ) : (
-            <p className="text-gray-500">
-              Os produtos desta venda não
-              foram salvos.
-            </p>
-          )}
+          if (!selectedSale) {
+            return null
+          }
 
-        </div>
+          const originalTotal =
+            Number(
+              selectedSale.total || 0
+            )
 
-        <div className="border-t mt-6 pt-4">
+          const discountValue =
+            Number(
+              discount.replace(",", ".") ||
+                0
+            )
 
-          <div className="flex justify-between">
-            <span>Total</span>
+          const receivedTotal =
+            Math.max(
+              originalTotal -
+                discountValue,
+              0
+            )
 
-            <span className="font-bold">
-              R${" "}
-              {Number(
-                selectedFiado.total || 0
-              ).toFixed(2)}
-            </span>
+          return (
+            <div className="mt-6 bg-white p-6 rounded-xl shadow">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="font-bold text-lg">
+                    💰 Receber pagamento
+                  </h2>
+
+                  <p className="text-gray-500 mt-1">
+                    {selectedSale.customer ||
+                      "Cliente não informado"}
+                  </p>
+                </div>
+
+                <button
+                  onClick={
+                    closeReceive
+                  }
+                  className="text-gray-500 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-5 grid grid-cols-3 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">
+                    Valor original
+                  </p>
+
+                  <p className="text-xl font-bold">
+                    R${" "}
+                    {originalTotal.toFixed(
+                      2
+                    )}
+                  </p>
+                </div>
+
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">
+                    Desconto
+                  </p>
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discount}
+                    onChange={(e) =>
+                      setDiscount(
+                        e.target.value
+                      )
+                    }
+                    placeholder="0,00"
+                    className="border p-2 rounded w-full mt-1"
+                  />
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">
+                    Valor a receber
+                  </p>
+
+                  <p className="text-xl font-bold text-green-700">
+                    R${" "}
+                    {receivedTotal.toFixed(
+                      2
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <p className="font-medium mb-2">
+                  Forma de recebimento
+                </p>
+
+                <select
+                  className="border p-2 rounded w-full"
+                  value={payment}
+                  onChange={(e) =>
+                    setPayment(
+                      e.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    Forma de recebimento
+                  </option>
+
+                  <option value="Pix">
+                    Pix
+                  </option>
+
+                  <option value="Dinheiro">
+                    Dinheiro
+                  </option>
+
+                  <option value="Débito">
+                    Cartão de débito
+                  </option>
+
+                  <option value="Crédito">
+                    Cartão de crédito
+                  </option>
+                </select>
+              </div>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={
+                    receiveFiado
+                  }
+                  disabled={receiving}
+                  className="bg-green-600 text-white px-5 py-2 rounded disabled:opacity-50"
+                >
+                  {receiving
+                    ? "Recebendo..."
+                    : "Confirmar recebimento"}
+                </button>
+
+                <button
+                  onClick={
+                    closeReceive
+                  }
+                  disabled={receiving}
+                  className="bg-gray-500 text-white px-5 py-2 rounded disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+
+      {/* MODAL DE DETALHES */}
+
+      {selectedFiado && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b flex justify-between">
+              <div>
+                <h2 className="text-xl font-bold">
+                  Detalhes do fiado
+                </h2>
+
+                <p className="text-gray-500 mt-1">
+                  {selectedFiado.customer ||
+                    "Cliente não informado"}
+                </p>
+              </div>
+
+              <button
+                onClick={() =>
+                  setSelectedFiado(null)
+                }
+                className="text-gray-500 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-500 mb-4">
+                Data:{" "}
+                {selectedFiado.date
+                  ? new Intl.DateTimeFormat(
+                      "pt-BR",
+                      {
+                        timeZone:
+                          "America/Sao_Paulo",
+                        dateStyle: "short",
+                        timeStyle: "medium",
+                      }
+                    ).format(
+                      new Date(
+                        selectedFiado.date
+                      )
+                    )
+                  : "-"}
+              </p>
+
+              <h3 className="font-bold text-lg mb-3">
+                Produtos
+              </h3>
+
+              <div className="space-y-3">
+                {selectedFiado.products &&
+                selectedFiado.products.length >
+                  0 ? (
+                  selectedFiado.products.map(
+                    (
+                      item: any,
+                      index: number
+                    ) => {
+                      const quantity =
+                        Number(
+                          item.quantity || 0
+                        )
+
+                      const salePrice =
+                        Number(
+                          item.salePrice || 0
+                        )
+
+                      const purchasePrice =
+                        Number(
+                          item.purchasePrice ||
+                            0
+                        )
+
+                      const total =
+                        Number(
+                          item.total ||
+                            salePrice *
+                              quantity
+                        )
+
+                      const profit =
+                        (salePrice -
+                          purchasePrice) *
+                        quantity
+
+                      return (
+                        <div
+                          key={`${item.id}-${index}`}
+                          className="border rounded-xl p-4"
+                        >
+                          <p className="font-bold">
+                            {item.displayName ||
+                              item.name}
+                          </p>
+
+                          <p className="text-gray-500">
+                            Quantidade:{" "}
+                            {quantity}{" "}
+                            {item.saleType ===
+                            "Fardo"
+                              ? "fardo(s)"
+                              : "unidade(s)"}
+                          </p>
+
+                          <div className="grid grid-cols-3 gap-3 mt-3">
+                            <div className="bg-gray-50 p-3 rounded">
+                              <p className="text-xs text-gray-500">
+                                Venda
+                              </p>
+
+                              <p className="font-bold">
+                                R${" "}
+                                {salePrice.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="bg-gray-50 p-3 rounded">
+                              <p className="text-xs text-gray-500">
+                                Custo
+                              </p>
+
+                              <p className="font-bold">
+                                R${" "}
+                                {purchasePrice.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="bg-green-50 p-3 rounded">
+                              <p className="text-xs text-gray-500">
+                                Lucro
+                              </p>
+
+                              <p className="font-bold text-green-700">
+                                R${" "}
+                                {profit.toFixed(
+                                  2
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="font-bold mt-3">
+                            Total: R${" "}
+                            {total.toFixed(
+                              2
+                            )}
+                          </p>
+                        </div>
+                      )
+                    }
+                  )
+                ) : (
+                  <p className="text-gray-500">
+                    Os produtos desta venda não
+                    foram salvos.
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t mt-6 pt-4 space-y-2">
+                <div className="flex justify-between">
+                  <span>
+                    Total original
+                  </span>
+
+                  <span className="font-bold">
+                    R${" "}
+                    {Number(
+                      selectedFiado.total ||
+                        0
+                    ).toFixed(2)}
+                  </span>
+                </div>
+
+                {Number(
+                  selectedFiado.discount || 0
+                ) > 0 && (
+                  <>
+                    <div className="flex justify-between text-red-600">
+                      <span>
+                        Desconto
+                      </span>
+
+                      <span className="font-bold">
+                        - R${" "}
+                        {Number(
+                          selectedFiado.discount ||
+                            0
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>
+                        Valor recebido
+                      </span>
+
+                      <span className="font-bold text-green-700">
+                        R${" "}
+                        {Number(
+                          selectedFiado.received_total ||
+                            0
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-
         </div>
-
-      </div>
-
-    </div>
-  </div>
-)}
+      )}
     </div>
   )
 }
