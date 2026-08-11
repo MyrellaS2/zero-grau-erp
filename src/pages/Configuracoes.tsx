@@ -977,47 +977,83 @@ async function saveDeliveryFeeNight() {
               Nenhum sabor cadastrado.
             </p>
           )}
-        </div>
-      </div>
-      <div className="mt-8 bg-white p-6 rounded-xl shadow">
+             </div>
+    </div>
+
+  </div>
+
+  <div className="mt-8 bg-white p-6 rounded-xl shadow">
   <h2 className="font-bold text-lg">
     🚚 Frete
   </h2>
 
   <p className="text-gray-500 mt-1">
-    Defina o valor cobrado por entrega.
+    Defina os valores cobrados por entrega.
   </p>
 
-  <div className="flex gap-3 mt-4">
-    <input
-      type="number"
-      step="0.01"
-      min="0"
-      className="border p-2 rounded w-full max-w-xs"
-      placeholder="Valor do frete"
-      value={deliveryFee}
-      onChange={(e) =>
-        setDeliveryFee(e.target.value)
-      }
-    />
+  <div className="mt-4">
+    <p className="font-medium mb-2">
+      Frete normal
+    </p>
 
-    <button
-      onClick={saveDeliveryFee}
-      disabled={savingDeliveryFee}
-      className="bg-blue-700 text-white px-4 py-2 rounded"
-    >
-      {savingDeliveryFee
-        ? "Salvando..."
-        : "Salvar frete"}
-    </button>
+    <div className="flex gap-3">
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        className="border p-2 rounded w-full max-w-xs"
+        placeholder="Valor do frete"
+        value={deliveryFee}
+        onChange={(e) =>
+          setDeliveryFee(e.target.value)
+        }
+      />
+
+      <button
+        onClick={saveDeliveryFee}
+        disabled={savingDeliveryFee}
+        className="bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        {savingDeliveryFee
+          ? "Salvando..."
+          : "Salvar frete"}
+      </button>
+    </div>
+  </div>
+
+  <div className="mt-6">
+    <p className="font-medium mb-2">
+      Frete da madrugada
+    </p>
+
+    <div className="flex gap-3">
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        className="border p-2 rounded w-full max-w-xs"
+        placeholder="Valor do frete da madrugada"
+        value={deliveryFeeNight}
+        onChange={(e) =>
+          setDeliveryFeeNight(e.target.value)
+        }
+      />
+
+      <button
+        onClick={saveDeliveryFeeNight}
+        disabled={savingDeliveryFeeNight}
+        className="bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        {savingDeliveryFeeNight
+          ? "Salvando..."
+          : "Salvar frete da madrugada"}
+      </button>
+    </div>
   </div>
 </div>
-    </div>
-    <Backup />
+       <Backup />
   </div>
-
-
   )
-  }
+}
 
-  export default Configuracoes
+export default Configuracoes
