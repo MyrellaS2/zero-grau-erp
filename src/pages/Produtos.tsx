@@ -593,10 +593,9 @@ const filteredProducts = products.filter((product) => {
 
 
         </div>
-        <StockHistory
-
+       <StockHistory
   movements={stockMovements}
-
+  products={products}
 />
 
 
