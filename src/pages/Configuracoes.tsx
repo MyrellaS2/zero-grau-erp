@@ -19,6 +19,8 @@
   const [brands, setBrands] = useState<Brand[]>([])
   const [flavors, setFlavors] = useState<Flavor[]>([])
   const [deliveryFee, setDeliveryFee] = useState("")
+  const [deliveryFeeNight, setDeliveryFeeNight] = useState("")
+const [savingDeliveryFeeNight, setSavingDeliveryFeeNight] = useState(false)
 const [savingDeliveryFee, setSavingDeliveryFee] = useState(false)
 
   const [category, setCategory] = useState("")
@@ -53,6 +55,9 @@ if (settingsError) {
   setDeliveryFee(
     String(settingsData[0].delivery_fee ?? 5)
   )
+  setDeliveryFeeNight(
+  String(settingsData[0].delivery_fee_night ?? 7)
+)
 }
   const [
   categoriesResult,
@@ -621,6 +626,54 @@ async function saveDeliveryFee() {
   alert("Valor do frete salvo!")
 
   setSavingDeliveryFee(false)
+}
+async function saveDeliveryFeeNight() {
+  const value = Number(
+    deliveryFeeNight.replace(",", ".")
+  )
+
+  if (isNaN(value) || value < 0) {
+    alert("Informe um valor de frete válido.")
+    return
+  }
+
+  setSavingDeliveryFeeNight(true)
+
+  const { data: settingsData } =
+    await supabase
+      .from("settings")
+      .select("id")
+      .limit(1)
+
+  if (!settingsData || settingsData.length === 0) {
+    alert("Configuração de frete não encontrada.")
+    setSavingDeliveryFeeNight(false)
+    return
+  }
+
+  const { error } = await supabase
+    .from("settings")
+    .update({
+      delivery_fee_night: value
+    })
+    .eq("id", settingsData[0].id)
+
+  if (error) {
+    console.error(
+      "ERRO AO SALVAR FRETE DA MADRUGADA:",
+      error
+    )
+
+    alert("Erro ao salvar o valor do frete da madrugada.")
+    setSavingDeliveryFeeNight(false)
+    return
+  }
+
+  setDeliveryFeeNight(value.toFixed(2))
+
+  alert("Frete da madrugada salvo!")
+
+  setSavingDeliveryFeeNight(false)
 }
   return (
     <div> <h1 className="text-3xl font-bold">

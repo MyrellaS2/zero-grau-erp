@@ -16,8 +16,10 @@ function Vendas() {
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
   const [discount, setDiscount] = useState("")
-  const [hasDelivery, setHasDelivery] = useState(false)
-  const [deliveryFee, setDeliveryFee] = useState(0)
+ const [hasDelivery, setHasDelivery] = useState(false)
+const [deliveryType, setDeliveryType] = useState<"Normal" | "Noturno">("Normal")
+const [deliveryFee, setDeliveryFee] = useState(0)
+const [deliveryFeeNight, setDeliveryFeeNight] = useState(0)
 
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
@@ -31,7 +33,7 @@ function Vendas() {
         error: settingsError,
       } = await supabase
         .from("settings")
-        .select("delivery_fee")
+       .select("delivery_fee, delivery_fee_night")
         .limit(1)
 
       if (settingsError) {
@@ -44,8 +46,12 @@ function Vendas() {
         settingsData.length > 0
       ) {
         setDeliveryFee(
-          Number(settingsData[0].delivery_fee || 0)
-        )
+  Number(settingsData[0].delivery_fee || 0)
+)
+
+setDeliveryFeeNight(
+  Number(settingsData[0].delivery_fee_night || 0)
+)
       }
 
       const {
@@ -351,10 +357,12 @@ function Vendas() {
       0
     )
 
-  const deliveryTotal =
-    hasDelivery
-      ? deliveryFee
-      : 0
+ const deliveryTotal =
+  hasDelivery
+    ? deliveryType === "Noturno"
+      ? deliveryFeeNight
+      : deliveryFee
+    : 0
 
   const discountValue =
     Number(discount || 0)
@@ -1133,28 +1141,51 @@ function Vendas() {
           )}
 
           <div className="border-t mt-5 pt-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={hasDelivery}
-                onChange={(e) =>
-                  setHasDelivery(
-                    e.target.checked
-                  )
-                }
-              />
+           <label className="flex items-center gap-2 cursor-pointer">
+  <input
+    type="checkbox"
+    checked={hasDelivery}
+    onChange={(e) => {
+      setHasDelivery(e.target.checked)
 
-              <span className="font-medium">
-                🚚 Adicionar frete
-              </span>
-            </label>
+      if (!e.target.checked) {
+        setDeliveryType("Normal")
+      }
+    }}
+  />
 
-            {hasDelivery && (
-              <p className="text-gray-600 mt-2">
-                Frete: R${" "}
-                {deliveryFee.toFixed(2)}
-              </p>
-            )}
+  <span className="font-medium">
+    🚚 Adicionar frete
+  </span>
+</label>
+
+{hasDelivery && (
+  <div className="mt-3">
+    <select
+      className="border p-2 rounded w-full"
+      value={deliveryType}
+      onChange={(e) =>
+        setDeliveryType(
+          e.target.value as "Normal" | "Noturno"
+        )
+      }
+    >
+      <option value="Normal">
+        🚚 Frete normal — R$ {deliveryFee.toFixed(2)}
+      </option>
+
+      <option value="Noturno">
+        🌙 Frete noturno — R$ {deliveryFeeNight.toFixed(2)}
+      </option>
+    </select>
+
+    <p className="text-gray-600 mt-2">
+      Frete selecionado: R${" "}
+      {deliveryTotal.toFixed(2)}
+    </p>
+  </div>
+)}
+          
 
             <p className="font-bold text-lg mt-3">
               Subtotal: R${" "}
