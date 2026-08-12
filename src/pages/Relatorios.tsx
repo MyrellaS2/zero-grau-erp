@@ -22,7 +22,10 @@ const { data, error } = await supabase
 
 
   if (error) {
-    console.error("ERRO AO CARREGAR RELATÓRIOS:", error)
+    console.error(
+      "ERRO AO CARREGAR RELATÓRIOS:",
+      error
+    )
     return
   }
 
@@ -34,88 +37,304 @@ loadSales()
 
 }, [])
 
-const faturamento = sales.reduce(
-(total, sale) => total + Number(sale.total || 0),
+/*
+
+* ============================================================
+* FATURAMENTO REAL
+* ============================================================
+*
+* Venda normal paga:
+* utiliza o total da venda.
+*
+* Fiado pendente:
+* não entra no faturamento.
+*
+* Fiado pago:
+* utiliza received_total, pois esse é o valor realmente recebido.
+  */
+
+const vendasRealizadas = sales.filter(
+(sale) =>
+sale.status === "Pago"
+)
+
+const faturamento = vendasRealizadas.reduce(
+(total, sale) => {
+const valorRecebido =
+sale.payment !== "Fiado"
+? Number(sale.total || 0)
+: Number(
+sale.received_total ??
+sale.total ??
 0
 )
 
-const lucro = sales.reduce(
-(total, sale) => total + Number(sale.profit || 0),
+  return total + valorRecebido
+},
 0
+
+
 )
 
-const quantidadeVendida = sales.reduce(
-(total, sale) => total + Number(sale.quantity || 0),
-0
+/*
+
+* ============================================================
+* LUCRO
+* ============================================================
+*
+* Para vendas normais:
+* utiliza o profit salvo na venda.
+*
+* Para fiado pago:
+* recalcula o lucro considerando o desconto.
+  */
+
+const lucro = vendasRealizadas.reduce(
+(total, sale) => {
+/*
+* Venda normal
+*/
+if (sale.payment !== "Fiado") {
+return (
+total +
+Number(sale.profit || 0)
 )
-
-const pagamentos = {
-Pix: sales
-.filter((sale) => sale.payment === "Pix")
-.reduce(
-(total, sale) => total + Number(sale.total || 0),
-0
-),
-
-
-Dinheiro: sales
-  .filter((sale) => sale.payment === "Dinheiro")
-  .reduce(
-    (total, sale) => total + Number(sale.total || 0),
-    0
-  ),
-
-Debito: sales
-  .filter((sale) => sale.payment === "Débito")
-  .reduce(
-    (total, sale) => total + Number(sale.total || 0),
-    0
-  ),
-
-Credito: sales
-  .filter((sale) => sale.payment === "Crédito")
-  .reduce(
-    (total, sale) => total + Number(sale.total || 0),
-    0
-  ),
-
-
 }
 
-const fiadoPendente = sales
-.filter(
-(sale) =>
-sale.payment === "Fiado" &&
-sale.status === "Pendente"
+
+  /*
+   * Fiado pago
+   *
+   * Calculamos o custo dos produtos.
+   */
+  if (
+    !Array.isArray(sale.products)
+  ) {
+    return (
+      total +
+      Number(sale.profit || 0)
+    )
+  }
+
+  const custoTotal =
+    sale.products.reduce(
+      (
+        custo: number,
+        item: any
+      ) => {
+        const quantity =
+          Number(
+            item.quantity || 0
+          )
+
+        const purchasePrice =
+          Number(
+            item.purchasePrice || 0
+          )
+
+        return (
+          custo +
+          purchasePrice *
+            quantity
+        )
+      },
+      0
+    )
+
+  /*
+   * Valor realmente recebido
+   * já considerando desconto.
+   */
+  const receivedTotal =
+    Number(
+      sale.received_total ??
+        sale.total ??
+        0
+    )
+
+  /*
+   * Lucro real = valor recebido - custo.
+   */
+  const lucroReal =
+    receivedTotal -
+    custoTotal
+
+  return total + lucroReal
+},
+0
+
+
 )
-.reduce(
-(total, sale) => total + Number(sale.total || 0),
+
+/*
+
+* ============================================================
+* QUANTIDADE VENDIDA
+* ============================================================
+*
+* Continua considerando os produtos vendidos.
+* Uma venda de fiado também conta aqui porque o produto
+* realmente foi vendido.
+  */
+
+const quantidadeVendida =
+sales.reduce(
+(total, sale) =>
+total +
+Number(
+sale.quantity || 0
+),
 0
 )
 
-const produtos: Record<string, number> = {}
+/*
+
+* ============================================================
+* FORMAS DE PAGAMENTO
+* ============================================================
+*
+* Fiado pendente não entra.
+*
+* Quando o fiado é recebido, ele passa a entrar na forma
+* de pagamento escolhida no recebimento.
+  */
+
+const pagamentos = {
+Pix: 0,
+Dinheiro: 0,
+Debito: 0,
+Credito: 0,
+}
+
+vendasRealizadas.forEach(
+(sale) => {
+const valorRecebido =
+sale.payment !== "Fiado"
+? Number(
+sale.total || 0
+)
+: Number(
+sale.received_total ??
+sale.total ??
+0
+)
+
+
+  if (
+    sale.payment === "Pix"
+  ) {
+    pagamentos.Pix +=
+      valorRecebido
+  }
+
+  if (
+    sale.payment ===
+    "Dinheiro"
+  ) {
+    pagamentos.Dinheiro +=
+      valorRecebido
+  }
+
+  if (
+    sale.payment ===
+    "Débito"
+  ) {
+    pagamentos.Debito +=
+      valorRecebido
+  }
+
+  if (
+    sale.payment ===
+    "Crédito"
+  ) {
+    pagamentos.Credito +=
+      valorRecebido
+  }
+}
+
+
+)
+
+/*
+
+* ============================================================
+* FIADO PENDENTE
+* ============================================================
+  */
+
+const fiadoPendente =
+sales
+.filter(
+(sale) =>
+sale.payment ===
+"Fiado" &&
+sale.status ===
+"Pendente"
+)
+.reduce(
+(total, sale) =>
+total +
+Number(
+sale.total || 0
+),
+0
+)
+
+/*
+
+* ============================================================
+* PRODUTOS MAIS VENDIDOS
+* ============================================================
+  */
+
+const produtos: Record<
+string,
+number
+
+> = {}
 
 sales.forEach((sale) => {
-if (!Array.isArray(sale.products)) {
+if (
+!Array.isArray(
+sale.products
+)
+) {
 return
 }
 
 
-sale.products.forEach((item: any) => {
-  const nome = item.displayName || item.name || "Produto"
+sale.products.forEach(
+  (item: any) => {
+    const nome =
+      item.displayName ||
+      item.name ||
+      "Produto"
 
-  if (produtos[nome]) {
-    produtos[nome] += Number(item.quantity || 0)
-  } else {
-    produtos[nome] = Number(item.quantity || 0)
+    const quantidade =
+      Number(
+        item.quantity || 0
+      )
+
+    if (produtos[nome]) {
+      produtos[nome] +=
+        quantidade
+    } else {
+      produtos[nome] =
+        quantidade
+    }
   }
-})
+)
 
 
 })
 
-const rankingProdutos = Object.keys(produtos)
-.sort((a, b) => produtos[b] - produtos[a])
+const rankingProdutos =
+Object.keys(produtos)
+.sort(
+(a, b) =>
+produtos[b] -
+produtos[a]
+)
 .slice(0, 5)
 
 const maisVendido =
@@ -123,41 +342,82 @@ rankingProdutos.length > 0
 ? rankingProdutos[0]
 : "Nenhum produto vendido"
 
-const vendasPorDia: Record<string, number> = {}
+/*
 
-sales.forEach((sale) => {
+* ============================================================
+* FATURAMENTO POR DIA
+* ============================================================
+*
+* Apenas valores efetivamente recebidos.
+  */
+
+const vendasPorDia: Record<
+string,
+number
+
+> = {}
+
+vendasRealizadas.forEach(
+(sale) => {
 if (!sale.date) {
 return
 }
 
 
-const data = new Date(sale.date)
+  const data = new Date(
+    sale.date
+  )
 
-if (Number.isNaN(data.getTime())) {
-  return
+  if (
+    Number.isNaN(
+      data.getTime()
+    )
+  ) {
+    return
+  }
+
+  const dataFormatada =
+    data.toLocaleDateString(
+      "pt-BR"
+    )
+
+  const valorRecebido =
+    sale.payment !== "Fiado"
+      ? Number(
+          sale.total || 0
+        )
+      : Number(
+          sale.received_total ??
+            sale.total ??
+            0
+        )
+
+  if (
+    vendasPorDia[
+      dataFormatada
+    ]
+  ) {
+    vendasPorDia[
+      dataFormatada
+    ] += valorRecebido
+  } else {
+    vendasPorDia[
+      dataFormatada
+    ] = valorRecebido
+  }
 }
 
-const dataFormatada = data.toLocaleDateString("pt-BR")
 
-if (vendasPorDia[dataFormatada]) {
-  vendasPorDia[dataFormatada] += Number(
-    sale.total || 0
-  )
-} else {
-  vendasPorDia[dataFormatada] = Number(
-    sale.total || 0
-  )
-}
-
-
-})
-
-const grafico = Object.keys(vendasPorDia).map(
-(data) => ({
-data,
-faturamento: vendasPorDia[data],
-})
 )
+
+const grafico =
+Object.keys(
+vendasPorDia
+).map((data) => ({
+data,
+faturamento:
+vendasPorDia[data],
+}))
 
 return ( <div> <h1 className="text-3xl font-bold">
 Relatórios </h1>
@@ -166,6 +426,8 @@ Relatórios </h1>
   <p className="mt-2 text-gray-500">
     Análise das vendas da ZERO GRAU
   </p>
+
+  {/* RESUMO */}
 
   <div className="grid grid-cols-3 gap-6 mt-8">
     <div className="bg-white p-6 rounded-xl shadow">
@@ -198,6 +460,8 @@ Relatórios </h1>
       </h2>
     </div>
   </div>
+
+  {/* FORMAS DE PAGAMENTO */}
 
   <div className="grid grid-cols-2 gap-6 mt-8">
     <div className="bg-white p-6 rounded-xl shadow">
@@ -248,6 +512,8 @@ Relatórios </h1>
       </div>
     </div>
 
+    {/* PRODUTOS MAIS VENDIDOS */}
+
     <div className="bg-white p-6 rounded-xl shadow">
       <h2 className="font-bold text-lg">
         🏆 Produtos mais vendidos
@@ -260,17 +526,24 @@ Relatórios </h1>
           </p>
         ) : (
           rankingProdutos.map(
-            (produto, index) => (
+            (
+              produto,
+              index
+            ) => (
               <div
                 key={produto}
                 className="flex justify-between border-b pb-2"
               >
                 <span>
-                  {index + 1}. {produto}
+                  {index + 1}.{" "}
+                  {produto}
                 </span>
 
                 <strong>
-                  {produtos[produto]} un
+                  {produtos[
+                    produto
+                  ]}{" "}
+                  un
                 </strong>
               </div>
             )
@@ -287,6 +560,8 @@ Relatórios </h1>
       </p>
     </div>
   </div>
+
+  {/* GRÁFICO */}
 
   <div className="mt-8 bg-white p-6 rounded-xl shadow">
     <h2 className="font-bold text-lg">
@@ -312,7 +587,9 @@ Relatórios </h1>
 
             <Tooltip
               formatter={(value: any) =>
-                `R$ ${Number(value).toFixed(2)}`
+                `R$ ${Number(
+                  value
+                ).toFixed(2)}`
               }
             />
 
@@ -329,7 +606,6 @@ Relatórios </h1>
     )}
   </div>
 </div>
-
 
 )
 }
