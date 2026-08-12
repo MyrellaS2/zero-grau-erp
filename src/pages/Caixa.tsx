@@ -191,11 +191,7 @@ function Caixa() {
   ============================================================
   */
 
-  const vendasRealizadas =
-    vendasDoCaixa.filter(
-      (sale) =>
-        sale.status === "Pago"
-    )
+ 
 
   /*
   ============================================================
@@ -826,7 +822,7 @@ function Caixa() {
 
   return (
     <div>
-      
+
       {/* CABEÇALHO */}
 
       <div className="flex justify-between items-start gap-4">
