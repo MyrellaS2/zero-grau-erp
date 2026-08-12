@@ -16,15 +16,24 @@ function Vendas() {
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
   const [discount, setDiscount] = useState("")
- const [hasDelivery, setHasDelivery] = useState(false)
-const [deliveryType, setDeliveryType] = useState<"Normal" | "Noturno">("Normal")
-const [deliveryFee, setDeliveryFee] = useState(0)
-const [deliveryFeeNight, setDeliveryFeeNight] = useState(0)
+
+  // PAGAMENTO EM DINHEIRO
+  const [cashGiven, setCashGiven] = useState("")
+  const [changeMethod, setChangeMethod] =
+    useState<"Dinheiro" | "Pix">("Dinheiro")
+
+  const [hasDelivery, setHasDelivery] = useState(false)
+  const [deliveryType, setDeliveryType] =
+    useState<"Normal" | "Noturno">("Normal")
+
+  const [deliveryFee, setDeliveryFee] = useState(0)
+  const [deliveryFeeNight, setDeliveryFeeNight] = useState(0)
 
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
-  const [selectedSale, setSelectedSale] = useState<any | null>(null)
+  const [selectedSale, setSelectedSale] =
+    useState<any | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -33,7 +42,7 @@ const [deliveryFeeNight, setDeliveryFeeNight] = useState(0)
         error: settingsError,
       } = await supabase
         .from("settings")
-       .select("delivery_fee, delivery_fee_night")
+        .select("delivery_fee, delivery_fee_night")
         .limit(1)
 
       if (settingsError) {
@@ -46,12 +55,16 @@ const [deliveryFeeNight, setDeliveryFeeNight] = useState(0)
         settingsData.length > 0
       ) {
         setDeliveryFee(
-  Number(settingsData[0].delivery_fee || 0)
-)
+          Number(
+            settingsData[0].delivery_fee || 0
+          )
+        )
 
-setDeliveryFeeNight(
-  Number(settingsData[0].delivery_fee_night || 0)
-)
+        setDeliveryFeeNight(
+          Number(
+            settingsData[0].delivery_fee_night || 0
+          )
+        )
       }
 
       const {
@@ -120,9 +133,7 @@ setDeliveryFeeNight(
               ),
           }))
 
-        setProducts(
-          formattedProducts
-        )
+        setProducts(formattedProducts)
       }
 
       if (salesData) {
@@ -150,29 +161,29 @@ setDeliveryFeeNight(
         )
     )
 
- function formatDateTime(dateValue: string) {
-  if (!dateValue) {
-    return "-"
+  function formatDateTime(dateValue: string) {
+    if (!dateValue) {
+      return "-"
+    }
+
+    const date = new Date(dateValue)
+
+    if (isNaN(date.getTime())) {
+      return "-"
+    }
+
+    date.setHours(date.getHours() - 3)
+
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(date)
   }
-
-  const date = new Date(dateValue)
-
-  if (isNaN(date.getTime())) {
-    return "-"
-  }
-
-  date.setHours(date.getHours() - 3)
-
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(date)
-}
 
   function addToCart() {
     const product =
@@ -357,15 +368,18 @@ setDeliveryFeeNight(
       0
     )
 
- const deliveryTotal =
-  hasDelivery
-    ? deliveryType === "Noturno"
-      ? deliveryFeeNight
-      : deliveryFee
-    : 0
+  const deliveryTotal =
+    hasDelivery
+      ? deliveryType === "Noturno"
+        ? deliveryFeeNight
+        : deliveryFee
+      : 0
 
   const discountValue =
-    Number(discount || 0)
+    Number(
+      String(discount)
+        .replace(",", ".") || 0
+    )
 
   const finalTotal =
     Math.max(
@@ -392,6 +406,26 @@ setDeliveryFeeNight(
           ),
       0
     )
+
+  // ============================================================
+  // TROCO
+  // ============================================================
+
+  const cashGivenValue =
+    Number(
+      String(cashGiven)
+        .replace(",", ".") || 0
+    )
+
+  const changeAmount =
+    payment === "Dinheiro" &&
+    cashGiven !== ""
+      ? Math.max(
+          cashGivenValue -
+            finalTotal,
+          0
+        )
+      : 0
 
   async function deleteSale(
     id: number
@@ -588,6 +622,42 @@ setDeliveryFeeNight(
       return
     }
 
+    // ============================================================
+    // VALIDAÇÃO DO PAGAMENTO EM DINHEIRO
+    // ============================================================
+
+    if (payment === "Dinheiro") {
+      if (cashGiven === "") {
+        alert(
+          "Informe quanto o cliente entregou em dinheiro."
+        )
+        return
+      }
+
+      if (
+        isNaN(cashGivenValue) ||
+        cashGivenValue < 0
+      ) {
+        alert(
+          "Valor entregue inválido."
+        )
+        return
+      }
+
+      if (
+        cashGivenValue < finalTotal
+      ) {
+        alert(
+          `O valor entregue é menor que o total da venda.\n\nTotal: R$ ${finalTotal.toFixed(
+            2
+          )}\nEntregue: R$ ${cashGivenValue.toFixed(
+            2
+          )}`
+        )
+        return
+      }
+    }
+
     for (
       const item of cart
     ) {
@@ -767,6 +837,26 @@ setDeliveryFeeNight(
           ? "Pendente"
           : "Pago",
 
+      // ==========================================================
+      // TROCO
+      // ==========================================================
+
+      change_amount:
+  payment === "Dinheiro"
+    ? changeAmount
+    : 0,
+
+change_method:
+  payment === "Dinheiro" &&
+  changeAmount > 0
+    ? changeMethod
+    : null,
+
+amount_received:
+  payment === "Dinheiro"
+    ? cashGivenValue
+    : 0,
+
       date:
         new Date().toISOString(),
     }
@@ -837,14 +927,32 @@ setDeliveryFeeNight(
     setCustomer("")
     setPayment("")
     setDiscount("")
+    setCashGiven("")
+    setChangeMethod("Dinheiro")
     setHasDelivery(false)
+    setDeliveryType("Normal")
     setProductSearch("")
     setProductId("")
     setQuantity("")
 
-    alert(
-      "Venda registrada!"
-    )
+    if (
+      payment === "Dinheiro" &&
+      changeAmount > 0
+    ) {
+      alert(
+        `Venda registrada!\n\nTroco: R$ ${changeAmount.toFixed(
+          2
+        )}\nTroco em: ${
+          changeMethod === "Pix"
+            ? "Pix"
+            : "Dinheiro"
+        }`
+      )
+    } else {
+      alert(
+        "Venda registrada!"
+      )
+    }
   }
 
   const filteredSales =
@@ -1141,51 +1249,62 @@ setDeliveryFeeNight(
           )}
 
           <div className="border-t mt-5 pt-4">
-           <label className="flex items-center gap-2 cursor-pointer">
-  <input
-    type="checkbox"
-    checked={hasDelivery}
-    onChange={(e) => {
-      setHasDelivery(e.target.checked)
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasDelivery}
+                onChange={(e) => {
+                  setHasDelivery(
+                    e.target.checked
+                  )
 
-      if (!e.target.checked) {
-        setDeliveryType("Normal")
-      }
-    }}
-  />
+                  if (
+                    !e.target.checked
+                  ) {
+                    setDeliveryType(
+                      "Normal"
+                    )
+                  }
+                }}
+              />
 
-  <span className="font-medium">
-    🚚 Adicionar frete
-  </span>
-</label>
+              <span className="font-medium">
+                🚚 Adicionar frete
+              </span>
+            </label>
 
-{hasDelivery && (
-  <div className="mt-3">
-    <select
-      className="border p-2 rounded w-full"
-      value={deliveryType}
-      onChange={(e) =>
-        setDeliveryType(
-          e.target.value as "Normal" | "Noturno"
-        )
-      }
-    >
-      <option value="Normal">
-        🚚 Frete normal — R$ {deliveryFee.toFixed(2)}
-      </option>
+            {hasDelivery && (
+              <div className="mt-3">
+                <select
+                  className="border p-2 rounded w-full"
+                  value={deliveryType}
+                  onChange={(e) =>
+                    setDeliveryType(
+                      e.target.value as
+                        | "Normal"
+                        | "Noturno"
+                    )
+                  }
+                >
+                  <option value="Normal">
+                    🚚 Frete normal — R${" "}
+                    {deliveryFee.toFixed(2)}
+                  </option>
 
-      <option value="Noturno">
-        🌙 Frete noturno — R$ {deliveryFeeNight.toFixed(2)}
-      </option>
-    </select>
+                  <option value="Noturno">
+                    🌙 Frete noturno — R${" "}
+                    {deliveryFeeNight.toFixed(
+                      2
+                    )}
+                  </option>
+                </select>
 
-    <p className="text-gray-600 mt-2">
-      Frete selecionado: R${" "}
-      {deliveryTotal.toFixed(2)}
-    </p>
-  </div>
-)}
-          
+                <p className="text-gray-600 mt-2">
+                  Frete selecionado: R${" "}
+                  {deliveryTotal.toFixed(2)}
+                </p>
+              </div>
+            )}
 
             <p className="font-bold text-lg mt-3">
               Subtotal: R${" "}
@@ -1238,11 +1357,21 @@ setDeliveryFeeNight(
           <select
             className="border p-2 rounded w-full mt-3"
             value={payment}
-            onChange={(e) =>
+            onChange={(e) => {
               setPayment(
                 e.target.value
               )
-            }
+
+              if (
+                e.target.value !==
+                "Dinheiro"
+              ) {
+                setCashGiven("")
+                setChangeMethod(
+                  "Dinheiro"
+                )
+              }
+            }}
           >
             <option value="">
               Forma de pagamento
@@ -1268,6 +1397,88 @@ setDeliveryFeeNight(
               Fiado
             </option>
           </select>
+
+          {payment ===
+            "Dinheiro" && (
+            <div className="mt-4 border rounded-lg p-4 bg-gray-50">
+              <p className="font-semibold">
+                💵 Pagamento em dinheiro
+              </p>
+
+              <label className="block text-sm text-gray-600 mt-3">
+                Quanto o cliente entregou?
+              </label>
+
+              <input
+                className="border p-2 rounded w-full mt-1"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Ex.: 50,00"
+                value={cashGiven}
+                onChange={(e) =>
+                  setCashGiven(
+                    e.target.value
+                  )
+                }
+              />
+
+              {cashGiven !== "" &&
+                cashGivenValue >=
+                  finalTotal && (
+                  <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-gray-500">
+                      Troco
+                    </p>
+
+                    <p className="text-xl font-bold text-green-700">
+                      R${" "}
+                      {changeAmount.toFixed(
+                        2
+                      )}
+                    </p>
+                  </div>
+                )}
+
+              {cashGiven !== "" &&
+                cashGivenValue <
+                  finalTotal && (
+                  <p className="text-red-600 mt-2">
+                    Valor entregue insuficiente.
+                  </p>
+                )}
+
+              {changeAmount > 0 && (
+                <div className="mt-4">
+                  <p className="font-medium mb-2">
+                    O troco será dado em:
+                  </p>
+
+                  <select
+                    className="border p-2 rounded w-full"
+                    value={
+                      changeMethod
+                    }
+                    onChange={(e) =>
+                      setChangeMethod(
+                        e.target.value as
+                          | "Dinheiro"
+                          | "Pix"
+                      )
+                    }
+                  >
+                    <option value="Dinheiro">
+                      💵 Dinheiro
+                    </option>
+
+                    <option value="Pix">
+                      📱 Pix
+                    </option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             onClick={finalizeSale}
@@ -1426,6 +1637,25 @@ setDeliveryFeeNight(
                       ).toFixed(2)}
                     </p>
 
+                    {sale.payment ===
+                      "Dinheiro" &&
+                      Number(
+                        sale.change_amount ||
+                          0
+                      ) > 0 && (
+                        <p className="text-gray-500 text-sm">
+                          Troco: R${" "}
+                          {Number(
+                            sale.change_amount ||
+                              0
+                          ).toFixed(2)}{" "}
+                          {sale.change_method ===
+                          "Pix"
+                            ? "(Pix)"
+                            : "(Dinheiro)"}
+                        </p>
+                      )}
+
                     <p className="text-green-600">
                       Lucro: R${" "}
                       {Number(
@@ -1538,7 +1768,10 @@ setDeliveryFeeNight(
                 {selectedSale.products &&
                 selectedSale.products.length > 0 ? (
                   selectedSale.products.map(
-                    (item: any, index: number) => {
+                    (
+                      item: any,
+                      index: number
+                    ) => {
                       const itemQuantity =
                         Number(
                           item.quantity || 0
@@ -1652,7 +1885,9 @@ setDeliveryFeeNight(
 
               <div className="border-t mt-6 pt-5">
                 <div className="flex justify-between text-gray-600">
-                  <span>Subtotal</span>
+                  <span>
+                    Subtotal
+                  </span>
 
                   <span>
                     R${" "}
@@ -1672,7 +1907,9 @@ setDeliveryFeeNight(
                   selectedSale.delivery_fee || 0
                 ) > 0 && (
                   <div className="flex justify-between text-gray-600 mt-2">
-                    <span>🚚 Frete</span>
+                    <span>
+                      🚚 Frete
+                    </span>
 
                     <span>
                       R${" "}
@@ -1732,8 +1969,32 @@ setDeliveryFeeNight(
                     </div>
                   )}
 
+                {Number(
+                  selectedSale.change_amount ||
+                    0
+                ) > 0 && (
+                  <div className="flex justify-between text-gray-600 mt-2">
+                    <span>
+                      Troco
+                    </span>
+
+                    <span>
+                      R${" "}
+                      {Number(
+                        selectedSale.change_amount
+                      ).toFixed(2)}{" "}
+                      {selectedSale.change_method ===
+                      "Pix"
+                        ? "(Pix)"
+                        : "(Dinheiro)"}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-between font-bold text-xl mt-4">
-                  <span>Total</span>
+                  <span>
+                    Total
+                  </span>
 
                   <span>
                     R${" "}
@@ -1744,7 +2005,9 @@ setDeliveryFeeNight(
                 </div>
 
                 <div className="flex justify-between text-green-700 font-bold mt-2">
-                  <span>Lucro da venda</span>
+                  <span>
+                    Lucro da venda
+                  </span>
 
                   <span>
                     R${" "}
