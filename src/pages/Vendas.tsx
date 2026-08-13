@@ -34,6 +34,7 @@ function Vendas() {
 
   const [selectedSale, setSelectedSale] =
     useState<any | null>(null)
+    const [savingSale, setSavingSale] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -599,7 +600,10 @@ function Vendas() {
     )
   }
 
-  async function finalizeSale() {
+ async function finalizeSale() {
+  if (savingSale) return
+
+  setSavingSale(true)
     if (cart.length === 0) {
       alert("Carrinho vazio!")
       return
@@ -959,6 +963,7 @@ amount_received:
         "Venda registrada!"
       )
     }
+    setSavingSale(false)
   }
 
   const filteredSales =
@@ -1487,11 +1492,14 @@ amount_received:
           )}
 
           <button
-            onClick={finalizeSale}
-            className="mt-5 w-full bg-blue-800 text-white py-3 rounded-lg font-bold"
-          >
-            Finalizar venda
-          </button>
+  onClick={finalizeSale}
+  disabled={savingSale}
+  className="mt-5 w-full bg-blue-800 text-white py-3 rounded-lg font-bold disabled:opacity-50"
+>
+  {savingSale
+    ? "Registrando venda..."
+    : "Finalizar venda"}
+</button>
         </div>
       </div>
 
