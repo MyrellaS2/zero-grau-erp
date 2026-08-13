@@ -176,23 +176,22 @@ loadData()
 
   async function saveProduct(product: Product){
 
-  const productData = {
-    name: product.name,
-    category: product.category,
-    brand: product.brand,
-    flavor: product.flavor,
-    volume: product.volume,
-    entry_type: product.entryType,
-    quantity: Number(product.quantity),
-    items_per_package: Number(product.itemsPerPackage),
-    stock: product.stock,
-    purchase_price: product.purchasePrice,
-    sale_price: product.salePrice,
-sale_price_package:
-  product.salePricePackage
-    ? Number(product.salePricePackage)
-    : null
-  }
+ const productData = {
+  name: product.name,
+  category: product.category,
+  brand: product.brand,
+  flavor: product.flavor,
+  volume: product.volume,
+  entry_type: product.entryType,
+  quantity: Number(product.quantity),
+  items_per_package: Number(product.itemsPerPackage),
+  purchase_price: product.purchasePrice,
+  sale_price: product.salePrice,
+  sale_price_package:
+    product.salePricePackage
+      ? Number(product.salePricePackage)
+      : null
+}
 
 
   if(product.id && editingProduct){
