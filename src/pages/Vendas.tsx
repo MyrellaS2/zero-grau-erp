@@ -757,21 +757,27 @@ function Vendas() {
         error: movementError,
       } = await supabase
         .from("stock_movements")
-        .insert({
-          product_id:
-            product.id,
+       .insert({
+  product_id:
+    product.id,
 
-          product_name:
-            product.name,
+  product_name:
+    product.name,
 
-          type: "Saída",
+  type: "Saída",
 
-          quantity:
-            quantityToRemove,
+  quantity:
+    quantityToRemove,
 
-          date:
-            new Date().toISOString(),
-        })
+  previous_stock:
+    Number(product.stock || 0),
+
+  current_stock:
+    newStock,
+
+  date:
+    new Date().toISOString(),
+})
         .select()
 
       console.log(

@@ -374,7 +374,7 @@ async function addStock(
 
 
   // Salva a movimentação no Supabase
- const { data: movementData, error: movementError } =
+const { data: movementData, error: movementError } =
   await supabase
     .from("stock_movements")
     .insert({
@@ -382,6 +382,8 @@ async function addStock(
       product_name: product.name,
       type: type,
       quantity: quantity,
+      previous_stock: previousStock,
+      current_stock: currentStock,
       date: new Date().toISOString(),
     })
     .select()
