@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 
@@ -19,35 +18,32 @@ function Caixa() {
     loadData()
   }, [])
 
+  /*
+  ============================================================
+  CARREGA O CAIXA E SOMENTE AS VENDAS PERTENCENTES A ELE
+  ============================================================
+  */
+
   async function loadData() {
     setLoading(true)
 
-    const { data: salesData, error: salesError } =
-      await supabase
-        .from("sales")
-        .select("*")
-        .order("date", {
-          ascending: false,
-        })
+    /*
+    ------------------------------------------------------------
+    BUSCA O CAIXA ABERTO
+    ------------------------------------------------------------
+    */
 
-    if (salesError) {
-      console.error(
-        "ERRO AO CARREGAR VENDAS:",
-        salesError
-      )
-    }
-
-    setSales(salesData || [])
-
-    const { data: cashData, error: cashError } =
-      await supabase
-        .from("cash_registers")
-        .select("*")
-        .eq("status", "Aberto")
-        .order("opened_at", {
-          ascending: false,
-        })
-        .limit(1)
+    const {
+      data: cashData,
+      error: cashError,
+    } = await supabase
+      .from("cash_registers")
+      .select("*")
+      .eq("status", "Aberto")
+      .order("opened_at", {
+        ascending: false,
+      })
+      .limit(1)
 
     if (cashError) {
       console.error(
@@ -56,10 +52,106 @@ function Caixa() {
       )
     }
 
-    setCashRegister(
+    const currentCash =
       cashData && cashData.length > 0
         ? cashData[0]
         : null
+
+    setCashRegister(currentCash)
+
+    /*
+    ------------------------------------------------------------
+    SEM CAIXA ABERTO
+    ------------------------------------------------------------
+    */
+
+    if (!currentCash) {
+      setSales([])
+      setLoading(false)
+      return
+    }
+
+    /*
+    ------------------------------------------------------------
+    VENDAS NORMAIS FEITAS DEPOIS DA ABERTURA
+    ------------------------------------------------------------
+    */
+
+    const {
+      data: normalSales,
+      error: normalSalesError,
+    } = await supabase
+      .from("sales")
+      .select("*")
+      .gte("date", currentCash.opened_at)
+      .order("date", {
+        ascending: false,
+      })
+
+    if (normalSalesError) {
+      console.error(
+        "ERRO AO CARREGAR VENDAS DO CAIXA:",
+        normalSalesError
+      )
+    }
+
+    /*
+    ------------------------------------------------------------
+    FIADOS ANTIGOS RECEBIDOS NESTE CAIXA
+    ------------------------------------------------------------
+    */
+
+    const {
+      data: oldFiados,
+      error: oldFiadosError,
+    } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("status", "Pago")
+      .eq(
+        "received_cash_register_id",
+        currentCash.id
+      )
+
+    if (oldFiadosError) {
+      console.error(
+        "ERRO AO CARREGAR FIADOS RECEBIDOS:",
+        oldFiadosError
+      )
+    }
+
+    /*
+    ------------------------------------------------------------
+    JUNTA OS DOIS GRUPOS
+    ------------------------------------------------------------
+    */
+
+    const combinedSales = [
+      ...(normalSales || []),
+      ...(oldFiados || []),
+    ]
+
+    /*
+    ------------------------------------------------------------
+    REMOVE DUPLICAÇÕES
+    ------------------------------------------------------------
+    */
+
+    const uniqueSales = Array.from(
+      new Map(
+        combinedSales.map((sale) => [
+          sale.id,
+          sale,
+        ])
+      ).values()
+    )
+
+    setSales(
+      uniqueSales.sort(
+        (a, b) =>
+          new Date(b.date).getTime() -
+          new Date(a.date).getTime()
+      )
     )
 
     setLoading(false)
@@ -71,13 +163,17 @@ function Caixa() {
   ============================================================
   */
 
-  function formatDate(date: string | null) {
+  function formatDate(
+    date: string | null
+  ) {
     if (!date) return "-"
 
     return new Intl.DateTimeFormat(
       "pt-BR",
       {
-        timeZone: "America/Sao_Paulo",
+        timeZone:
+          "America/Sao_Paulo",
+
         dateStyle: "short",
         timeStyle: "medium",
       }
@@ -88,110 +184,95 @@ function Caixa() {
   ============================================================
   VENDAS DO CAIXA ATUAL
   ============================================================
-
-  São somente as vendas realizadas depois
-  da abertura do caixa.
-  ============================================================
   */
 
-  const vendasDoCaixa = cashRegister
-    ? sales.filter((sale) => {
-        if (!sale.date) return false
+  const vendasDoCaixa =
+    cashRegister
+      ? sales.filter((sale) => {
+          if (!sale.date) {
+            return false
+          }
 
-        const saleDate = new Date(
-          sale.date
-        )
+          const saleDate =
+            new Date(sale.date)
 
-        const openedAt = new Date(
-          cashRegister.opened_at
-        )
+          const openedAt =
+            new Date(
+              cashRegister.opened_at
+            )
 
-        return saleDate >= openedAt
-      })
-    : []
+          return (
+            sale.payment !== "Fiado" &&
+            saleDate >= openedAt
+          )
+        })
+      : []
 
   /*
   ============================================================
   RECEBIMENTOS DO CAIXA ATUAL
   ============================================================
-
-  Inclui:
-
-  1. Vendas realizadas depois da abertura
-     e que já foram pagas.
-
-  2. Fiados antigos recebidos neste caixa.
-
-  Dessa forma o dinheiro e o lucro do fiado
-  são contabilizados no caixa em que ele foi recebido.
-  ============================================================
   */
 
-  const recebimentosDoCaixa = cashRegister
-    ? sales.filter((sale) => {
-        if (sale.status !== "Pago") {
-          return false
-        }
+  const recebimentosDoCaixa =
+    cashRegister
+      ? sales.filter((sale) => {
+          if (
+            sale.status !== "Pago"
+          ) {
+            return false
+          }
 
-        /*
-        --------------------------------------------------------
-        FIADO RECEBIDO NESTE CAIXA
-        --------------------------------------------------------
-        */
+          /*
+          ------------------------------------------------------
+          FIADO ANTIGO RECEBIDO NESTE CAIXA
+          ------------------------------------------------------
+          */
 
-        if (
-          sale.payment === "Fiado" &&
-          sale.received_cash_register_id !==
-            null &&
-          sale.received_cash_register_id !==
-            undefined
-        ) {
-          return (
-            String(
-              sale.received_cash_register_id
-            ) ===
-            String(cashRegister.id)
-          )
-        }
+          if (
+            sale.payment === "Fiado" &&
+            sale.received_cash_register_id !==
+              null &&
+            sale.received_cash_register_id !==
+              undefined
+          ) {
+            return (
+              String(
+                sale.received_cash_register_id
+              ) ===
+              String(
+                cashRegister.id
+              )
+            )
+          }
 
-        /*
-        --------------------------------------------------------
-        VENDA NORMAL REALIZADA NESTE CAIXA
-        --------------------------------------------------------
-        */
+          /*
+          ------------------------------------------------------
+          VENDA NORMAL FEITA NESTE CAIXA
+          ------------------------------------------------------
+          */
 
-        if (!sale.date) {
-          return false
-        }
+          if (
+            sale.payment === "Fiado"
+          ) {
+            return false
+          }
 
-        const saleDate = new Date(
-          sale.date
-        )
+          if (!sale.date) {
+            return false
+          }
 
-        const openedAt = new Date(
-          cashRegister.opened_at
-        )
+          const saleDate =
+            new Date(sale.date)
 
-        /*
-        Fiado antigo não entra aqui.
-        Ele só entra pelo received_cash_register_id.
-        */
+          const openedAt =
+            new Date(
+              cashRegister.opened_at
+            )
 
-        if (sale.payment === "Fiado") {
-          return false
-        }
-
-        return saleDate >= openedAt
-      })
-    : []
-
-  /*
-  ============================================================
-  VENDAS PAGAS DO PERÍODO
-  ============================================================
-  */
-
- 
+          return saleDate >= openedAt
+        })
+      : []
 
   /*
   ============================================================
@@ -222,7 +303,9 @@ function Caixa() {
             String(
               sale.received_cash_register_id
             ) ===
-            String(cashRegister.id)
+            String(
+              cashRegister.id
+            )
           )
         })
       : []
@@ -237,8 +320,10 @@ function Caixa() {
     sale: any
   ) => {
     if (
-      sale.received_total !== null &&
-      sale.received_total !== undefined
+      sale.received_total !==
+        null &&
+      sale.received_total !==
+        undefined
     ) {
       return Number(
         sale.received_total
@@ -256,20 +341,25 @@ function Caixa() {
   ============================================================
   */
 
- const dinheiroVendas =
-  recebimentosDoCaixa
-    .filter(
-      (sale) =>
-        sale.payment === "Dinheiro" ||
-        (
-          sale.payment === "Fiado" &&
-          sale.received_payment === "Dinheiro"
-        )
-    )
+  const dinheiroVendas =
+    recebimentosDoCaixa
+      .filter(
+        (sale) =>
+          sale.payment ===
+            "Dinheiro" ||
+          (
+            sale.payment ===
+              "Fiado" &&
+            sale.received_payment ===
+              "Dinheiro"
+          )
+      )
       .reduce(
         (total, sale) =>
           total +
-          getValorRecebido(sale),
+          getValorRecebido(
+            sale
+          ),
         0
       )
 
@@ -292,7 +382,8 @@ function Caixa() {
         (total, sale) =>
           total +
           Number(
-            sale.change_amount || 0
+            sale.change_amount ||
+              0
           ),
         0
       )
@@ -316,7 +407,8 @@ function Caixa() {
         (total, sale) =>
           total +
           Number(
-            sale.change_amount || 0
+            sale.change_amount ||
+              0
           ),
         0
       )
@@ -342,19 +434,24 @@ function Caixa() {
   */
 
   const pixVendas =
-  recebimentosDoCaixa
-    .filter(
-      (sale) =>
-        sale.payment === "Pix" ||
-        (
-          sale.payment === "Fiado" &&
-          sale.received_payment === "Pix"
-        )
-    )
+    recebimentosDoCaixa
+      .filter(
+        (sale) =>
+          sale.payment ===
+            "Pix" ||
+          (
+            sale.payment ===
+              "Fiado" &&
+            sale.received_payment ===
+              "Pix"
+          )
+      )
       .reduce(
         (total, sale) =>
           total +
-          getValorRecebido(sale),
+          getValorRecebido(
+            sale
+          ),
         0
       )
 
@@ -368,20 +465,25 @@ function Caixa() {
   ============================================================
   */
 
- const debito =
-  recebimentosDoCaixa
-    .filter(
-      (sale) =>
-        sale.payment === "Débito" ||
-        (
-          sale.payment === "Fiado" &&
-          sale.received_payment === "Débito"
-        )
-    )
+  const debito =
+    recebimentosDoCaixa
+      .filter(
+        (sale) =>
+          sale.payment ===
+            "Débito" ||
+          (
+            sale.payment ===
+              "Fiado" &&
+            sale.received_payment ===
+              "Débito"
+          )
+      )
       .reduce(
         (total, sale) =>
           total +
-          getValorRecebido(sale),
+          getValorRecebido(
+            sale
+          ),
         0
       )
 
@@ -392,32 +494,30 @@ function Caixa() {
   */
 
   const credito =
-  recebimentosDoCaixa
-    .filter(
-      (sale) =>
-        sale.payment === "Crédito" ||
-        (
-          sale.payment === "Fiado" &&
-          sale.received_payment === "Crédito"
-        )
-    )
+    recebimentosDoCaixa
+      .filter(
+        (sale) =>
+          sale.payment ===
+            "Crédito" ||
+          (
+            sale.payment ===
+              "Fiado" &&
+            sale.received_payment ===
+              "Crédito"
+          )
+      )
       .reduce(
         (total, sale) =>
           total +
-          getValorRecebido(sale),
+          getValorRecebido(
+            sale
+          ),
         0
       )
 
   /*
   ============================================================
   TOTAL VENDIDO
-  ============================================================
-
-  Aqui entram somente as vendas realizadas
-  durante este caixa.
-
-  Fiado antigo recebido agora não aumenta
-  o total vendido deste caixa.
   ============================================================
   */
 
@@ -435,10 +535,6 @@ function Caixa() {
   ============================================================
   TOTAL RECEBIDO
   ============================================================
-
-  Não inclui o dinheiro inicial.
-  Inclui fiados antigos recebidos neste caixa.
-  ============================================================
   */
 
   const recebido =
@@ -453,28 +549,28 @@ function Caixa() {
   ============================================================
   CÁLCULO DO LUCRO
   ============================================================
-
-  REGRA DO SISTEMA:
-
-  - Venda normal paga:
-    lucro contabilizado no caixa da venda.
-
-  - Fiado recebido posteriormente:
-    lucro contabilizado no caixa em que
-    o fiado foi recebido.
-
-  Portanto, recebimentosDoCaixa é a fonte
-  correta para o lucro deste caixa.
-  ============================================================
   */
 
   const calcularLucro = (
     sale: any
   ) => {
     /*
-    --------------------------------------------------------
-    SE NÃO EXISTIREM OS PRODUTOS
-    --------------------------------------------------------
+    Venda normal:
+    usa o lucro que foi salvo
+    na venda.
+    */
+
+    if (
+      sale.payment !==
+      "Fiado"
+    ) {
+      return Number(
+        sale.profit || 0
+      )
+    }
+
+    /*
+    Fiado recebido posteriormente.
     */
 
     if (
@@ -487,12 +583,6 @@ function Caixa() {
       )
     }
 
-    /*
-    --------------------------------------------------------
-    CUSTO DOS PRODUTOS
-    --------------------------------------------------------
-    */
-
     const custoTotal =
       sale.products.reduce(
         (
@@ -501,7 +591,8 @@ function Caixa() {
         ) => {
           const quantity =
             Number(
-              item.quantity || 0
+              item.quantity ||
+                0
             )
 
           const purchasePrice =
@@ -519,26 +610,19 @@ function Caixa() {
         0
       )
 
-    /*
-    --------------------------------------------------------
-    VALOR RECEBIDO
-    --------------------------------------------------------
-
-    Para fiado recebido posteriormente,
-    received_total será o valor realmente
-    recebido, considerando eventual desconto.
-    */
-
-    const valorRecebido =
+    return (
       getValorRecebido(
         sale
-      )
-
-    return (
-      valorRecebido -
+      ) -
       custoTotal
     )
   }
+
+  /*
+  ============================================================
+  LUCRO TOTAL
+  ============================================================
+  */
 
   const lucroTotal =
     recebimentosDoCaixa.reduce(
@@ -548,7 +632,9 @@ function Caixa() {
       ) => {
         return (
           total +
-          calcularLucro(sale)
+          calcularLucro(
+            sale
+          )
         )
       },
       0
@@ -657,6 +743,14 @@ function Caixa() {
 
     setOpeningAmount("")
     setShowOpenModal(false)
+
+    /*
+    Recarrega os dados para
+    aplicar imediatamente o filtro
+    do novo caixa.
+    */
+
+    await loadData()
 
     alert(
       "Caixa aberto com sucesso!"
@@ -783,6 +877,7 @@ function Caixa() {
     }
 
     setCashRegister(null)
+    setSales([])
     setCountedCash("")
     setShowCloseModal(false)
     setClosing(false)
@@ -822,7 +917,6 @@ function Caixa() {
 
   return (
     <div>
-
       {/* CABEÇALHO */}
 
       <div className="flex justify-between items-start gap-4">
@@ -1157,10 +1251,10 @@ function Caixa() {
 
           {vendasDoCaixa.length ===
             0 && (
-              <p className="text-gray-500">
-                Nenhuma venda registrada neste caixa.
-              </p>
-            )}
+            <p className="text-gray-500">
+              Nenhuma venda registrada neste caixa.
+            </p>
+          )}
         </div>
       </div>
 
@@ -1202,7 +1296,8 @@ function Caixa() {
 
                     <p className="text-gray-500">
                       Forma:{" "}
-                      {sale.payment}
+                      {sale.received_payment ||
+                        sale.payment}
                     </p>
                   </div>
 
@@ -1258,7 +1353,7 @@ function Caixa() {
               type="number"
               min="0"
               step="0.01"
-              placeholder="Dinheiro inicial"
+              placeholder="Dinheiro inicial (opcional)"
               value={
                 openingAmount
               }
@@ -1423,7 +1518,9 @@ function Caixa() {
 
                 <span className="text-green-700">
                   R${" "}
-                  {recebido.toFixed(2)}
+                  {recebido.toFixed(
+                    2
+                  )}
                 </span>
               </div>
             </div>
@@ -1516,4 +1613,3 @@ function Caixa() {
 }
 
 export default Caixa
-
