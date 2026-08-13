@@ -600,11 +600,10 @@ function Vendas() {
     )
   }
 
- async function finalizeSale() {
+async function finalizeSale() {
   if (savingSale) return
 
-  setSavingSale(true)
-    if (cart.length === 0) {
+  if (cart.length === 0) {
       alert("Carrinho vazio!")
       return
     }
@@ -625,6 +624,7 @@ function Vendas() {
       )
       return
     }
+    setSavingSale(true)
 
     // ============================================================
     // VALIDAÇÃO DO PAGAMENTO EM DINHEIRO
@@ -661,6 +661,7 @@ function Vendas() {
         return
       }
     }
+    const stocksAfterSale: Record<number, number> = {}
 
     for (
       const item of cart
@@ -725,64 +726,66 @@ function Vendas() {
             0
         )
 
-      const newStock =
-        Number(
-          product.stock || 0
-        ) -
-        quantityToRemove
+      const previousStock = Number(
+  product.stock || 0
+)
+
+const { data: newStock, error: stockError } =
+  await supabase.rpc(
+    "baixar_estoque",
+    {
+      p_product_id: product.id,
+      p_quantity: quantityToRemove,
+    }
+  )
+
+if (stockError) {
+  console.error(
+    "ERRO AO ATUALIZAR ESTOQUE:",
+    stockError
+  )
+
+  alert(
+    `Não foi possível atualizar o estoque.\n\n${stockError.message}`
+  )
+
+  return
+}
+
+const currentStock = Number(
+  newStock
+)
+stocksAfterSale[product.id] =
+  currentStock
+      
 
       const {
-        error: stockError,
-      } = await supabase
-        .from("products")
-        .update({
-          stock: newStock,
-        })
-        .eq(
-          "id",
-          product.id
-        )
+  data: movementData,
+  error: movementError,
+} = await supabase
+  .from("stock_movements")
+  .insert({
+    product_id:
+      product.id,
 
-      if (stockError) {
-        console.error(
-          "ERRO AO ATUALIZAR ESTOQUE:",
-          stockError
-        )
+    product_name:
+      product.name,
 
-        alert(
-          "Não foi possível atualizar o estoque."
-        )
+    type: "Saída",
 
-        return
-      }
+    quantity:
+      quantityToRemove,
 
-      const {
-        data: movementData,
-        error: movementError,
-      } = await supabase
-        .from("stock_movements")
-       .insert({
-  product_id:
-    product.id,
+    previous_stock:
+      previousStock,
 
-  product_name:
-    product.name,
+    current_stock:
+      currentStock,
 
-  type: "Saída",
-
-  quantity:
-    quantityToRemove,
-
-  previous_stock:
-    Number(product.stock || 0),
-
-  current_stock:
-    newStock,
-
-  date:
-    new Date().toISOString(),
-})
-        .select()
+    date:
+      new Date().toISOString(),
+  })
+  .select()
 
       console.log(
         "MOVIMENTAÇÃO SALVA:",
@@ -892,39 +895,25 @@ amount_received:
       return
     }
 
-    const updatedProducts =
-      products.map(
-        (product) => {
-          const item =
-            cart.find(
-              (cartItem) =>
-                cartItem.id ===
-                product.id
-            )
+   const updatedProducts =
+  products.map((product) => {
+    if (
+      stocksAfterSale[product.id] !==
+      undefined
+    ) {
+      return {
+        ...product,
+        stock:
+          stocksAfterSale[product.id],
+      }
+    }
 
-          if (item) {
-            return {
-              ...product,
+    return product
+  })
 
-              stock:
-                Number(
-                  product.stock || 0
-                ) -
-                Number(
-                  item.stockQuantity ||
-                    item.quantity ||
-                    0
-                ),
-            }
-          }
-
-          return product
-        }
-      )
-
-    setProducts(
-      updatedProducts
-    )
+setProducts(
+  updatedProducts
+)
 
     if (newSaleData) {
       setSales([
