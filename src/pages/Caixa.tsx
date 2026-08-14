@@ -14,9 +14,25 @@ function Caixa() {
   const [countedCash, setCountedCash] = useState("")
   const [closing, setClosing] = useState(false)
 
-  useEffect(() => {
+ useEffect(() => {
+  loadData()
+
+  const handleFocus = () => {
     loadData()
-  }, [])
+  }
+
+  window.addEventListener(
+    "focus",
+    handleFocus
+  )
+
+  return () => {
+    window.removeEventListener(
+      "focus",
+      handleFocus
+    )
+  }
+}, [])
 
   /*
   ============================================================
