@@ -161,6 +161,7 @@ function Caixa() {
         ])
       ).values()
     )
+   
 
     setSales(
       uniqueSales.sort(
@@ -332,14 +333,12 @@ function Caixa() {
   ============================================================
   */
 
-  const getValorRecebido = (
-    sale: any
-  ) => {
+ const getValorRecebido = (sale: any) => {
+  // FIADO RECEBIDO
+  if (sale.payment === "Fiado") {
     if (
-      sale.received_total !==
-        null &&
-      sale.received_total !==
-        undefined
+      sale.received_total !== null &&
+      sale.received_total !== undefined
     ) {
       return Number(
         sale.received_total
@@ -350,6 +349,29 @@ function Caixa() {
       sale.total || 0
     )
   }
+
+  // DINHEIRO
+  if (sale.payment === "Dinheiro") {
+    if (
+      sale.amount_received !== null &&
+      sale.amount_received !== undefined &&
+      Number(sale.amount_received) > 0
+    ) {
+      return Number(
+        sale.amount_received
+      )
+    }
+
+    return Number(
+      sale.total || 0
+    )
+  }
+
+  // PIX / DÉBITO / CRÉDITO
+  return Number(
+    sale.total || 0
+  )
+}
 
   /*
   ============================================================
