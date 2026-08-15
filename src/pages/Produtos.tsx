@@ -174,93 +174,82 @@ loadData()
 
 
 
-  async function saveProduct(product: Product){
+async function saveProduct(product: Product) {
+  const productData = {
+    name: product.name,
+    category: product.category,
+    brand: product.brand,
+    flavor: product.flavor,
+    volume: product.volume,
+    entry_type: product.entryType,
+    quantity: Number(product.quantity),
+    items_per_package: Number(
+      product.itemsPerPackage
+    ),
+    purchase_price: product.purchasePrice,
+    sale_price: product.salePrice,
+    sale_price_package:
+      product.salePricePackage
+        ? Number(product.salePricePackage)
+        : null,
+  }
 
- const productData = {
-  name: product.name,
-  category: product.category,
-  brand: product.brand,
-  flavor: product.flavor,
-  volume: product.volume,
-  entry_type: product.entryType,
-  quantity: Number(product.quantity),
-  items_per_package: Number(product.itemsPerPackage),
-  purchase_price: product.purchasePrice,
-  sale_price: product.salePrice,
-  sale_price_package:
-    product.salePricePackage
-      ? Number(product.salePricePackage)
-      : null
-}
-
-
-  if(product.id && editingProduct){
-
+  if (product.id && editingProduct) {
+    // EDITAR: não altera o estoque
     const { error } = await supabase
       .from("products")
       .update(productData)
       .eq("id", product.id)
 
-
-    if(error){
+    if (error) {
       console.log(error)
       alert("Erro ao atualizar produto")
       return
     }
-
-
-  }else{
-
+  } else {
+    // NOVO PRODUTO: salva o estoque inicial
+    const newProductData = {
+      ...productData,
+      stock: Number(product.stock || 0),
+    }
 
     const { data, error } = await supabase
       .from("products")
-      .insert(productData)
+      .insert(newProductData)
       .select()
 
-
-    if(error){
+    if (error) {
       console.log(error)
       alert("Erro ao salvar produto")
       return
     }
 
+    if (data) {
+      const newProduct = {
+        ...data[0],
+        purchasePrice:
+          data[0].purchase_price,
+        salePrice:
+          data[0].sale_price,
+        salePricePackage:
+          data[0].sale_price_package,
+        entryType:
+          data[0].entry_type,
+        itemsPerPackage:
+          data[0].items_per_package,
+        stock:
+          data[0].stock,
+      }
 
-   if(data){
-
-  const newProduct = {
-    ...data[0],
-
-    purchasePrice:
-      data[0].purchase_price,
-
-    salePrice:
-      data[0].sale_price,
-      salePricePackage:
-  data[0].sale_price_package,
-
-    entryType:
-      data[0].entry_type,
-
-    itemsPerPackage:
-      data[0].items_per_package
-
+      setProducts([
+        ...products,
+        newProduct as Product,
+      ])
+    }
   }
-
-
-  setProducts([
-    ...products,
-    newProduct as Product
-  ])
-
-}
-
-  }
-
 
   alert("Produto salvo!")
-
   setEditingProduct(null)
-
 }
 
 
