@@ -206,17 +206,24 @@ async function saveProduct(product: Product) {
       alert("Erro ao atualizar produto")
       return
     }
-  } else {
-    // NOVO PRODUTO: salva o estoque inicial
+    } else {
+    // NOVO PRODUTO: calcula e salva o estoque inicial
+    const stockInicial =
+      product.entryType === "Fardo"
+        ? Number(product.quantity) *
+          Number(product.itemsPerPackage)
+        : Number(product.quantity)
+
     const newProductData = {
       ...productData,
-      stock: Number(product.stock || 0),
+      stock: stockInicial,
     }
 
-    const { data, error } = await supabase
-      .from("products")
-      .insert(newProductData)
-      .select()
+    const { data, error } =
+      await supabase
+        .from("products")
+        .insert(newProductData)
+        .select()
 
     if (error) {
       console.log(error)
@@ -228,17 +235,20 @@ async function saveProduct(product: Product) {
       const newProduct = {
         ...data[0],
         purchasePrice:
-          data[0].purchase_price,
+          Number(data[0].purchase_price || 0),
         salePrice:
-          data[0].sale_price,
+          Number(data[0].sale_price || 0),
         salePricePackage:
-          data[0].sale_price_package,
+          data[0].sale_price_package !== null &&
+          data[0].sale_price_package !== undefined
+            ? Number(data[0].sale_price_package)
+            : null,
         entryType:
           data[0].entry_type,
         itemsPerPackage:
           data[0].items_per_package,
         stock:
-          data[0].stock,
+          Number(data[0].stock || 0),
       }
 
       setProducts([
