@@ -5,8 +5,10 @@ import {
   Wallet,
   BarChart3,
   Settings,
-  FileText
+  FileText,
+  GlassWater,
 } from "lucide-react"
+
 import { Link } from "react-router-dom"
 
 function Sidebar() {
@@ -18,39 +20,69 @@ function Sidebar() {
 
       <nav className="space-y-4">
 
-        <Link to="/" className="flex items-center gap-3">
-  <Home size={20}/>
-  Dashboard
-</Link>
+        <Link
+          to="/"
+          className="flex items-center gap-3"
+        >
+          <Home size={20} />
+          Dashboard
+        </Link>
 
-        <Link to="/produtos" className="flex items-center gap-3">
-  <Package size={20}/>
-  Produtos
-</Link>
+        <Link
+          to="/produtos"
+          className="flex items-center gap-3"
+        >
+          <Package size={20} />
+          Produtos
+        </Link>
 
-        <Link to="/vendas" className="flex items-center gap-3">
-  <ShoppingCart size={20}/>
-  Vendas
-</Link>
-<Link to="/fiados" className="flex items-center gap-3">
-  <FileText size={20}/>
-  Fiados
-</Link>
+        <Link
+          to="/copoes"
+          className="flex items-center gap-3"
+        >
+          <GlassWater size={20} />
+          Copões
+        </Link>
 
-        <Link to="/caixa" className="flex items-center gap-3">
-  <Wallet size={20}/>
-  Caixa
-</Link>
+        <Link
+          to="/vendas"
+          className="flex items-center gap-3"
+        >
+          <ShoppingCart size={20} />
+          Vendas
+        </Link>
 
-        <Link to="/relatorios" className="flex items-center gap-3">
-  <BarChart3 size={20}/>
-  Relatórios
-</Link>
+        <Link
+          to="/fiados"
+          className="flex items-center gap-3"
+        >
+          <FileText size={20} />
+          Fiados
+        </Link>
 
-        <Link to="/configuracoes" className="flex items-center gap-3">
-  <Settings size={20}/>
-  Configurações
-</Link>
+        <Link
+          to="/caixa"
+          className="flex items-center gap-3"
+        >
+          <Wallet size={20} />
+          Caixa
+        </Link>
+
+        <Link
+          to="/relatorios"
+          className="flex items-center gap-3"
+        >
+          <BarChart3 size={20} />
+          Relatórios
+        </Link>
+
+        <Link
+          to="/configuracoes"
+          className="flex items-center gap-3"
+        >
+          <Settings size={20} />
+          Configurações
+        </Link>
 
       </nav>
     </aside>

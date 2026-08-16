@@ -19,6 +19,7 @@ import Caixa from "./pages/Caixa"
 import Relatorios from "./pages/Relatorios"
 import Configuracoes from "./pages/Configuracoes"
 import Fiados from "./pages/Fiados"
+import Copoes from "./pages/Copoes"
 
 function App() {
   const [session, setSession] = useState<any>(null)
@@ -80,6 +81,10 @@ function App() {
               path="/produtos"
               element={<Produtos />}
             />
+            <Route
+  path="/copoes"
+  element={<Copoes />}
+/>
 
             <Route
               path="/vendas"
