@@ -333,24 +333,46 @@ function Caixa() {
   ============================================================
   */
 
- const getValorRecebido = (sale: any) => {
-  // FIADO RECEBIDO
+const getValorRecebido = (sale: any) => {
+  const valorProdutos =
+    Number(sale.total || 0) -
+    Number(sale.delivery_fee || 0)
+
+  // FIADO recebido
   if (sale.payment === "Fiado") {
     if (
       sale.received_total !== null &&
       sale.received_total !== undefined
     ) {
-      return Number(
-        sale.received_total
+      return (
+        Number(sale.received_total) -
+        Number(sale.delivery_fee || 0)
       )
     }
 
-    return Number(
-      sale.total || 0
-    )
+    return valorProdutos
   }
 
   // DINHEIRO
+  if (sale.payment === "Dinheiro") {
+    if (
+      sale.amount_received !== null &&
+      sale.amount_received !== undefined &&
+      Number(sale.amount_received) > 0
+    ) {
+      return (
+        Number(sale.amount_received) -
+        Number(sale.delivery_fee || 0)
+      )
+    }
+
+    return valorProdutos
+  }
+
+  // PIX / DÉBITO / CRÉDITO
+  return valorProdutos
+}
+const getValorRecebidoBruto = (sale: any) => {
   if (sale.payment === "Dinheiro") {
     if (
       sale.amount_received !== null &&
@@ -367,7 +389,16 @@ function Caixa() {
     )
   }
 
-  // PIX / DÉBITO / CRÉDITO
+  if (
+    sale.payment === "Fiado" &&
+    sale.received_total !== null &&
+    sale.received_total !== undefined
+  ) {
+    return Number(
+      sale.received_total
+    )
+  }
+
   return Number(
     sale.total || 0
   )
@@ -380,26 +411,26 @@ function Caixa() {
   */
 
   const dinheiroVendas =
-    recebimentosDoCaixa
-      .filter(
-        (sale) =>
+  recebimentosDoCaixa
+    .filter(
+      (sale) =>
+        sale.payment ===
+          "Dinheiro" ||
+        (
           sale.payment ===
-            "Dinheiro" ||
-          (
-            sale.payment ===
-              "Fiado" &&
-            sale.received_payment ===
-              "Dinheiro"
-          )
-      )
-      .reduce(
-        (total, sale) =>
-          total +
-          getValorRecebido(
-            sale
-          ),
-        0
-      )
+            "Fiado" &&
+          sale.received_payment ===
+            "Dinheiro"
+        )
+    )
+    .reduce(
+      (total, sale) =>
+        total +
+        getValorRecebidoBruto(
+          sale
+        ),
+      0
+    )
 
   /*
   ============================================================
@@ -560,14 +591,22 @@ function Caixa() {
   */
 
   const totalVendido =
-    vendasDoCaixa.reduce(
-      (total, sale) =>
-        total +
-        Number(
-          sale.total || 0
-        ),
-      0
-    )
+  vendasDoCaixa.reduce(
+    (total, sale) =>
+      total +
+      Number(sale.total || 0) -
+      Number(sale.delivery_fee || 0),
+    0
+  )
+  const totalFretes =
+  vendasDoCaixa.reduce(
+    (total, sale) =>
+      total +
+      Number(
+        sale.delivery_fee || 0
+      ),
+    0
+  )
 
   /*
   ============================================================
@@ -1050,48 +1089,81 @@ function Caixa() {
 
       {/* RESUMO */}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">
-            💰 Vendido
-          </p>
+     {/* RESUMO */}
 
-          <h2 className="text-2xl font-bold mt-2">
-            R$ {totalVendido.toFixed(2)}
-          </h2>
-        </div>
+<div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mt-8">
 
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">
-            💵 Recebido
-          </p>
+  <div className="bg-white p-6 rounded-xl shadow">
+    <p className="text-gray-500">
+      💰 Vendido
+    </p>
 
-          <h2 className="text-2xl font-bold text-green-600 mt-2">
-            R$ {recebido.toFixed(2)}
-          </h2>
-        </div>
+    <p className="text-sm text-gray-400 mt-1">
+      Quanto em vendas foi registrado neste caixa, sem incluir frete.
+    </p>
 
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">
-            📈 Lucro
-          </p>
+    <h2 className="text-2xl font-bold mt-2">
+      R$ {totalVendido.toFixed(2)}
+    </h2>
+  </div>
 
-          <h2 className="text-2xl font-bold mt-2">
-            R$ {lucroTotal.toFixed(2)}
-          </h2>
-        </div>
+  <div className="bg-white p-6 rounded-xl shadow">
+    <p className="text-gray-500">
+      💵 Recebido
+    </p>
 
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">
-            🛒 Vendas
-          </p>
+    <p className="text-sm text-gray-400 mt-1">
+      Quanto entrou pelas vendas, sem contar o valor do frete.
+    </p>
 
-          <h2 className="text-2xl font-bold mt-2">
-            {quantidadeVendas}
-          </h2>
-        </div>
-      </div>
+    <h2 className="text-2xl font-bold text-green-600 mt-2">
+      R$ {recebido.toFixed(2)}
+    </h2>
+  </div>
 
+  <div className="bg-white p-6 rounded-xl shadow">
+    <p className="text-gray-500">
+      🚚 Fretes
+    </p>
+
+    <p className="text-sm text-gray-400 mt-1">
+      Total cobrado de entrega nas vendas deste caixa.
+    </p>
+
+    <h2 className="text-2xl font-bold mt-2">
+      R$ {totalFretes.toFixed(2)}
+    </h2>
+  </div>
+
+  <div className="bg-white p-6 rounded-xl shadow">
+    <p className="text-gray-500">
+      📈 Lucro
+    </p>
+
+    <p className="text-sm text-gray-400 mt-1">
+      Lucro das vendas, sem considerar o frete como lucro.
+    </p>
+
+    <h2 className="text-2xl font-bold mt-2">
+      R$ {lucroTotal.toFixed(2)}
+    </h2>
+  </div>
+
+  <div className="bg-white p-6 rounded-xl shadow">
+    <p className="text-gray-500">
+      🛒 Vendas
+    </p>
+
+    <p className="text-sm text-gray-400 mt-1">
+      Quantidade de vendas realizadas neste caixa.
+    </p>
+
+    <h2 className="text-2xl font-bold mt-2">
+      {quantidadeVendas}
+    </h2>
+  </div>
+
+</div>
       {/* FORMAS DE PAGAMENTO */}
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
