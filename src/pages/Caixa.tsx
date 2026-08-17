@@ -3,51 +3,86 @@ import { supabase } from "../lib/supabase"
 
 function Caixa() {
   const [sales, setSales] = useState<any[]>([])
-  const [cashRegister, setCashRegister] = useState<any | null>(null)
+  const [cashRegister, setCashRegister] =
+    useState<any | null>(null)
 
-  const [loading, setLoading] = useState(true)
+  const [outflows, setOutflows] =
+    useState<any[]>([])
 
-  const [showOpenModal, setShowOpenModal] = useState(false)
-  const [showCloseModal, setShowCloseModal] = useState(false)
+  const [loading, setLoading] =
+    useState(true)
 
-  const [openingAmount, setOpeningAmount] = useState("")
-  const [countedCash, setCountedCash] = useState("")
-  const [closing, setClosing] = useState(false)
+  const [showOpenModal, setShowOpenModal] =
+    useState(false)
 
- useEffect(() => {
-  loadData()
+  const [showCloseModal, setShowCloseModal] =
+    useState(false)
 
-  const handleFocus = () => {
+  const [showDiagnostico, setShowDiagnostico] =
+    useState(false)
+
+  const [showSaidas, setShowSaidas] =
+    useState(false)
+
+  const [showOutflowModal, setShowOutflowModal] =
+    useState(false)
+
+  const [openingAmount, setOpeningAmount] =
+    useState("")
+
+  const [countedCash, setCountedCash] =
+    useState("")
+
+  const [closing, setClosing] =
+    useState(false)
+
+  const [outflowAmount, setOutflowAmount] =
+    useState("")
+
+  const [outflowType, setOutflowType] =
+    useState<
+      | "Compra/Reposição de estoque"
+      | "Despesa"
+      | "Retirada"
+    >("Compra/Reposição de estoque")
+
+  const [outflowPaymentMethod, setOutflowPaymentMethod] =
+    useState<"Dinheiro" | "Pix">("Pix")
+
+  const [outflowDescription, setOutflowDescription] =
+    useState("")
+
+  const [savingOutflow, setSavingOutflow] =
+    useState(false)
+
+  useEffect(() => {
     loadData()
-  }
 
-  window.addEventListener(
-    "focus",
-    handleFocus
-  )
+    const handleFocus = () => {
+      loadData()
+    }
 
-  return () => {
-    window.removeEventListener(
+    window.addEventListener(
       "focus",
       handleFocus
     )
-  }
-}, [])
+
+    return () => {
+      window.removeEventListener(
+        "focus",
+        handleFocus
+      )
+    }
+  }, [])
 
   /*
   ============================================================
-  CARREGA O CAIXA E SOMENTE AS VENDAS PERTENCENTES A ELE
+  CARREGA O CAIXA, VENDAS E SAÍDAS
   ============================================================
   */
 
   async function loadData() {
     setLoading(true)
-
-    /*
-    ------------------------------------------------------------
-    BUSCA O CAIXA ABERTO
-    ------------------------------------------------------------
-    */
 
     const {
       data: cashData,
@@ -69,27 +104,23 @@ function Caixa() {
     }
 
     const currentCash =
-      cashData && cashData.length > 0
+      cashData &&
+      cashData.length > 0
         ? cashData[0]
         : null
 
     setCashRegister(currentCash)
 
-    /*
-    ------------------------------------------------------------
-    SEM CAIXA ABERTO
-    ------------------------------------------------------------
-    */
-
     if (!currentCash) {
       setSales([])
+      setOutflows([])
       setLoading(false)
       return
     }
 
     /*
     ------------------------------------------------------------
-    VENDAS NORMAIS FEITAS DEPOIS DA ABERTURA
+    VENDAS A PARTIR DA ABERTURA
     ------------------------------------------------------------
     */
 
@@ -99,7 +130,10 @@ function Caixa() {
     } = await supabase
       .from("sales")
       .select("*")
-      .gte("date", currentCash.opened_at)
+      .gte(
+        "date",
+        currentCash.opened_at
+      )
       .order("date", {
         ascending: false,
       })
@@ -138,9 +172,30 @@ function Caixa() {
 
     /*
     ------------------------------------------------------------
-    JUNTA OS DOIS GRUPOS
+    SAÍDAS DO CAIXA
     ------------------------------------------------------------
     */
+
+    const {
+      data: outflowsData,
+      error: outflowsError,
+    } = await supabase
+      .from("cash_outflows")
+      .select("*")
+      .eq(
+        "cash_register_id",
+        currentCash.id
+      )
+      .order("created_at", {
+        ascending: false,
+      })
+
+    if (outflowsError) {
+      console.error(
+        "ERRO AO CARREGAR SAÍDAS:",
+        outflowsError
+      )
+    }
 
     const combinedSales = [
       ...(normalSales || []),
@@ -153,22 +208,32 @@ function Caixa() {
     ------------------------------------------------------------
     */
 
-    const uniqueSales = Array.from(
-      new Map(
-        combinedSales.map((sale) => [
-          sale.id,
-          sale,
-        ])
-      ).values()
-    )
-   
+    const uniqueSales =
+      Array.from(
+        new Map(
+          combinedSales.map(
+            (sale) => [
+              sale.id,
+              sale,
+            ]
+          )
+        ).values()
+      )
 
     setSales(
       uniqueSales.sort(
         (a, b) =>
-          new Date(b.date).getTime() -
-          new Date(a.date).getTime()
+          new Date(
+            b.date
+          ).getTime() -
+          new Date(
+            a.date
+          ).getTime()
       )
+    )
+
+    setOutflows(
+      outflowsData || []
     )
 
     setLoading(false)
@@ -194,101 +259,117 @@ function Caixa() {
         dateStyle: "short",
         timeStyle: "medium",
       }
-    ).format(new Date(date))
+    ).format(
+      new Date(date)
+    )
   }
 
   /*
   ============================================================
-  VENDAS DO CAIXA ATUAL
+  VENDAS PAGAS REALIZADAS NESTE CAIXA
   ============================================================
   */
 
   const vendasDoCaixa =
     cashRegister
-      ? sales.filter((sale) => {
-          if (!sale.date) {
-            return false
-          }
+      ? sales.filter(
+          (sale) => {
+            if (!sale.date) {
+              return false
+            }
 
-          const saleDate =
-            new Date(sale.date)
+            const saleDate =
+              new Date(
+                sale.date
+              )
 
-          const openedAt =
-            new Date(
-              cashRegister.opened_at
+            const openedAt =
+              new Date(
+                cashRegister.opened_at
+              )
+
+            return (
+              sale.payment !==
+                "Fiado" &&
+              sale.status ===
+                "Pago" &&
+              saleDate >=
+                openedAt
             )
-
-          return (
-            sale.payment !== "Fiado" &&
-            saleDate >= openedAt
-          )
-        })
+          }
+        )
       : []
 
   /*
   ============================================================
-  RECEBIMENTOS DO CAIXA ATUAL
+  RECEBIMENTOS DO CAIXA
   ============================================================
   */
 
   const recebimentosDoCaixa =
     cashRegister
-      ? sales.filter((sale) => {
-          if (
-            sale.status !== "Pago"
-          ) {
-            return false
-          }
+      ? sales.filter(
+          (sale) => {
+            if (
+              sale.status !==
+              "Pago"
+            ) {
+              return false
+            }
 
-          /*
-          ------------------------------------------------------
-          FIADO ANTIGO RECEBIDO NESTE CAIXA
-          ------------------------------------------------------
-          */
+            /*
+            FIADO ANTIGO RECEBIDO
+            */
 
-          if (
-            sale.payment === "Fiado" &&
-            sale.received_cash_register_id !==
-              null &&
-            sale.received_cash_register_id !==
-              undefined
-          ) {
-            return (
-              String(
-                sale.received_cash_register_id
-              ) ===
-              String(
-                cashRegister.id
+            if (
+              sale.payment ===
+                "Fiado" &&
+              sale.received_cash_register_id !==
+                null &&
+              sale.received_cash_register_id !==
+                undefined
+            ) {
+              return (
+                String(
+                  sale.received_cash_register_id
+                ) ===
+                String(
+                  cashRegister.id
+                )
               )
+            }
+
+            /*
+            VENDA NORMAL
+            */
+
+            if (
+              sale.payment ===
+              "Fiado"
+            ) {
+              return false
+            }
+
+            if (!sale.date) {
+              return false
+            }
+
+            const saleDate =
+              new Date(
+                sale.date
+              )
+
+            const openedAt =
+              new Date(
+                cashRegister.opened_at
+              )
+
+            return (
+              saleDate >=
+              openedAt
             )
           }
-
-          /*
-          ------------------------------------------------------
-          VENDA NORMAL FEITA NESTE CAIXA
-          ------------------------------------------------------
-          */
-
-          if (
-            sale.payment === "Fiado"
-          ) {
-            return false
-          }
-
-          if (!sale.date) {
-            return false
-          }
-
-          const saleDate =
-            new Date(sale.date)
-
-          const openedAt =
-            new Date(
-              cashRegister.opened_at
-            )
-
-          return saleDate >= openedAt
-        })
+        )
       : []
 
   /*
@@ -299,110 +380,468 @@ function Caixa() {
 
   const fiadosRecebidos =
     cashRegister
-      ? sales.filter((sale) => {
-          if (
-            sale.payment !== "Fiado" ||
-            sale.status !== "Pago"
-          ) {
-            return false
-          }
+      ? sales.filter(
+          (sale) => {
+            if (
+              sale.payment !==
+                "Fiado" ||
+              sale.status !==
+                "Pago"
+            ) {
+              return false
+            }
 
-          if (
-            sale.received_cash_register_id ===
-              null ||
-            sale.received_cash_register_id ===
-              undefined
-          ) {
-            return false
-          }
+            if (
+              sale.received_cash_register_id ===
+                null ||
+              sale.received_cash_register_id ===
+                undefined
+            ) {
+              return false
+            }
 
-          return (
-            String(
-              sale.received_cash_register_id
-            ) ===
-            String(
-              cashRegister.id
+            return (
+              String(
+                sale.received_cash_register_id
+              ) ===
+              String(
+                cashRegister.id
+              )
             )
-          )
-        })
+          }
+        )
       : []
 
   /*
   ============================================================
-  VALOR EFETIVAMENTE RECEBIDO
+  FIADOS PENDENTES
   ============================================================
   */
 
-const getValorRecebido = (sale: any) => {
-  const valorProdutos =
-    Number(sale.total || 0) -
-    Number(sale.delivery_fee || 0)
+  const fiadosPendentes =
+    cashRegister
+      ? sales.filter(
+          (sale) => {
+            if (
+              sale.payment !==
+                "Fiado" ||
+              sale.status !==
+                "Pendente" ||
+              !sale.date
+            ) {
+              return false
+            }
 
-  // FIADO recebido
-  if (sale.payment === "Fiado") {
+            const saleDate =
+              new Date(
+                sale.date
+              )
+
+            const openedAt =
+              new Date(
+                cashRegister.opened_at
+              )
+
+            return (
+              saleDate >=
+              openedAt
+            )
+          }
+        )
+      : []
+
+  /*
+  ============================================================
+  CUSTO DOS PRODUTOS
+  ============================================================
+  */
+
+  const getCustoProdutos = (
+    sale: any
+  ) => {
     if (
-      sale.received_total !== null &&
-      sale.received_total !== undefined
+      !Array.isArray(
+        sale.products
+      )
     ) {
-      return (
-        Number(sale.received_total) -
-        Number(sale.delivery_fee || 0)
+      return 0
+    }
+
+    return sale.products.reduce(
+      (
+        total: number,
+        item: any
+      ) => {
+        const quantity =
+          Number(
+            item.quantity ||
+              0
+          )
+
+        const purchasePrice =
+          Number(
+            item.purchasePrice ||
+              0
+          )
+
+        return (
+          total +
+          purchasePrice *
+            quantity
+        )
+      },
+      0
+    )
+  }
+
+  /*
+  ============================================================
+  VALOR DOS PRODUTOS RECEBIDOS
+  ============================================================
+  */
+
+  const getValorRecebido = (
+    sale: any
+  ) => {
+    const valorProdutos =
+      Number(
+        sale.total || 0
+      ) -
+      Number(
+        sale.delivery_fee || 0
+      )
+
+    /*
+    FIADO RECEBIDO
+    */
+
+    if (
+      sale.payment ===
+      "Fiado"
+    ) {
+      if (
+        sale.received_total !==
+          null &&
+        sale.received_total !==
+          undefined
+      ) {
+        return Number(
+          sale.received_total
+        )
+      }
+
+      return Math.max(
+        valorProdutos -
+          Number(
+            sale.discount || 0
+          ),
+        0
       )
     }
+
+    /*
+    DINHEIRO
+    */
+
+    if (
+      sale.payment ===
+      "Dinheiro"
+    ) {
+      if (
+        sale.amount_received !==
+          null &&
+        sale.amount_received !==
+          undefined &&
+        Number(
+          sale.amount_received
+        ) > 0
+      ) {
+        return (
+          Number(
+            sale.amount_received
+          ) -
+          Number(
+            sale.delivery_fee ||
+              0
+          )
+        )
+      }
+
+      return valorProdutos
+    }
+
+    /*
+    PIX / DÉBITO / CRÉDITO
+    */
 
     return valorProdutos
   }
 
-  // DINHEIRO
-  if (sale.payment === "Dinheiro") {
-    if (
-      sale.amount_received !== null &&
-      sale.amount_received !== undefined &&
-      Number(sale.amount_received) > 0
-    ) {
-      return (
-        Number(sale.amount_received) -
-        Number(sale.delivery_fee || 0)
-      )
-    }
+  /*
+  ============================================================
+  LUCRO DA VENDA
+  ============================================================
+  */
 
-    return valorProdutos
-  }
-
-  // PIX / DÉBITO / CRÉDITO
-  return valorProdutos
-}
-const getValorRecebidoBruto = (sale: any) => {
-  if (sale.payment === "Dinheiro") {
+  const calcularLucro = (
+    sale: any
+  ) => {
     if (
-      sale.amount_received !== null &&
-      sale.amount_received !== undefined &&
-      Number(sale.amount_received) > 0
+      sale.payment !==
+      "Fiado"
     ) {
       return Number(
-        sale.amount_received
+        sale.profit || 0
       )
     }
 
-    return Number(
-      sale.total || 0
+    if (
+      !Array.isArray(
+        sale.products
+      )
+    ) {
+      return Number(
+        sale.profit || 0
+      )
+    }
+
+    const custoTotal =
+      getCustoProdutos(
+        sale
+      )
+
+    return (
+      getValorRecebido(
+        sale
+      ) -
+      custoTotal
     )
   }
 
-  if (
-    sale.payment === "Fiado" &&
-    sale.received_total !== null &&
-    sale.received_total !== undefined
-  ) {
-    return Number(
-      sale.received_total
+  /*
+  ============================================================
+  DADOS FINANCEIROS
+  ============================================================
+  */
+
+  const getDadosFinanceiros = (
+    sale: any
+  ) => {
+    const custo =
+      getCustoProdutos(
+        sale
+      )
+
+    const frete =
+      Number(
+        sale.delivery_fee ||
+          0
+      )
+
+    let lucro = 0
+
+    if (
+      sale.payment !==
+      "Fiado"
+    ) {
+      lucro =
+        Number(
+          sale.profit || 0
+        )
+    } else {
+      lucro =
+        calcularLucro(
+          sale
+        )
+    }
+
+    return {
+      custo,
+      lucro,
+      frete,
+    }
+  }
+
+  /*
+  ============================================================
+  VALOR REALMENTE RECEBIDO
+  ============================================================
+  */
+
+  const getValorRecebidoBruto = (
+    sale: any
+  ) => {
+    /*
+    VENDA NORMAL
+    */
+
+    if (
+      sale.payment !== "Fiado"
+    ) {
+      return Number(
+        sale.total || 0
+      )
+    }
+
+    /*
+    FIADO
+
+    received_total = produtos recebidos
+    depois do desconto.
+
+    Frete é acrescentado uma única vez.
+    */
+
+    const produtosRecebidos =
+      Number(
+        sale.received_total || 0
+      )
+
+    const frete =
+      Number(
+        sale.delivery_fee || 0
+      )
+
+    return (
+      produtosRecebidos +
+      frete
     )
   }
 
-  return Number(
-    sale.total || 0
-  )
-}
+  /*
+  ============================================================
+  VENDIDO
+  ============================================================
+  */
+
+  const totalVendido =
+    vendasDoCaixa.reduce(
+      (
+        total,
+        sale
+      ) =>
+        total +
+        getDadosFinanceiros(
+          sale
+        ).custo,
+      0
+    )
+
+  /*
+  ============================================================
+  RECEBIDO
+  ============================================================
+  */
+
+  const recebido =
+    recebimentosDoCaixa.reduce(
+      (
+        total,
+        sale
+      ) =>
+        total +
+        getDadosFinanceiros(
+          sale
+        ).custo,
+      0
+    )
+
+  /*
+  ============================================================
+  FRETES
+  ============================================================
+  */
+
+  const totalFretes =
+    recebimentosDoCaixa.reduce(
+      (
+        total,
+        sale
+      ) =>
+        total +
+        getDadosFinanceiros(
+          sale
+        ).frete,
+      0
+    )
+
+  /*
+  ============================================================
+  LUCRO
+  ============================================================
+  */
+
+  const lucroTotal =
+    recebimentosDoCaixa.reduce(
+      (
+        total,
+        sale
+      ) =>
+        total +
+        getDadosFinanceiros(
+          sale
+        ).lucro,
+      0
+    )
+
+  /*
+  ============================================================
+  TOTAL RECEBIDO NO PERÍODO
+  ============================================================
+  */
+
+  const totalRecebidoPeriodo =
+    recebimentosDoCaixa.reduce(
+      (
+        total,
+        sale
+      ) => {
+        const valorProdutos =
+          getValorRecebido(
+            sale
+          )
+
+        const frete =
+          Number(
+            sale.delivery_fee || 0
+          )
+
+        return (
+          total +
+          valorProdutos +
+          frete
+        )
+      },
+      0
+    )
+
+  /*
+  ============================================================
+  QUANTIDADE DE VENDAS
+  ============================================================
+  */
+
+  const quantidadeVendas =
+    vendasDoCaixa.length
+
+  /*
+  ============================================================
+  FIADO PENDENTE
+  ============================================================
+  */
+
+  const fiado =
+    fiadosPendentes.reduce(
+      (
+        total,
+        sale
+      ) =>
+        total +
+        Number(
+          sale.total || 0
+        ),
+      0
+    )
 
   /*
   ============================================================
@@ -411,26 +850,29 @@ const getValorRecebidoBruto = (sale: any) => {
   */
 
   const dinheiroVendas =
-  recebimentosDoCaixa
-    .filter(
-      (sale) =>
-        sale.payment ===
-          "Dinheiro" ||
-        (
+    recebimentosDoCaixa
+      .filter(
+        (sale) =>
           sale.payment ===
-            "Fiado" &&
-          sale.received_payment ===
-            "Dinheiro"
-        )
-    )
-    .reduce(
-      (total, sale) =>
-        total +
-        getValorRecebidoBruto(
+            "Dinheiro" ||
+          (
+            sale.payment ===
+              "Fiado" &&
+            sale.received_payment ===
+              "Dinheiro"
+          )
+      )
+      .reduce(
+        (
+          total,
           sale
-        ),
-      0
-    )
+        ) =>
+          total +
+          getValorRecebidoBruto(
+            sale
+          ),
+        0
+      )
 
   /*
   ============================================================
@@ -448,7 +890,10 @@ const getValorRecebidoBruto = (sale: any) => {
             "Dinheiro"
       )
       .reduce(
-        (total, sale) =>
+        (
+          total,
+          sale
+        ) =>
           total +
           Number(
             sale.change_amount ||
@@ -473,7 +918,10 @@ const getValorRecebidoBruto = (sale: any) => {
             "Pix"
       )
       .reduce(
-        (total, sale) =>
+        (
+          total,
+          sale
+        ) =>
           total +
           Number(
             sale.change_amount ||
@@ -481,6 +929,119 @@ const getValorRecebidoBruto = (sale: any) => {
           ),
         0
       )
+
+  /*
+  ============================================================
+  SAÍDAS
+  ============================================================
+  */
+
+  const totalSaidas =
+    outflows.reduce(
+      (
+        total,
+        outflow
+      ) =>
+        total +
+        Number(
+          outflow.amount || 0
+        ),
+      0
+    )
+
+  const totalSaidasDinheiro =
+    outflows
+      .filter(
+        (outflow) =>
+          outflow.payment_method ===
+          "Dinheiro"
+      )
+      .reduce(
+        (
+          total,
+          outflow
+        ) =>
+          total +
+          Number(
+            outflow.amount || 0
+          ),
+        0
+      )
+
+  const totalSaidasPix =
+    outflows
+      .filter(
+        (outflow) =>
+          outflow.payment_method ===
+          "Pix"
+      )
+      .reduce(
+        (
+          total,
+          outflow
+        ) =>
+          total +
+          Number(
+            outflow.amount || 0
+          ),
+        0
+      )
+
+  const totalDespesas =
+    outflows
+      .filter(
+        (outflow) =>
+          outflow.type ===
+          "Despesa"
+      )
+      .reduce(
+        (
+          total,
+          outflow
+        ) =>
+          total +
+          Number(
+            outflow.amount || 0
+          ),
+        0
+      )
+
+  /*
+  ============================================================
+  SALDO DISPONÍVEL
+  ============================================================
+
+  Dinheiro inicial
+  + total recebido
+  - saídas
+
+  ============================================================
+  */
+
+  const saldoDisponivel =
+    Number(
+      cashRegister?.opening_amount ||
+        0
+    ) +
+    totalRecebidoPeriodo -
+    totalSaidas
+
+  /*
+  ============================================================
+  LUCRO DISPONÍVEL
+  ============================================================
+
+  Lucro
+  - despesas
+
+  Compra de estoque e retirada
+  não reduzem o lucro disponível.
+  ============================================================
+  */
+
+  const lucroDisponivel =
+    lucroTotal -
+    totalDespesas
 
   /*
   ============================================================
@@ -494,7 +1055,8 @@ const getValorRecebidoBruto = (sale: any) => {
         0
     ) +
     dinheiroVendas -
-    trocoDinheiro
+    trocoDinheiro -
+    totalSaidasDinheiro
 
   /*
   ============================================================
@@ -516,9 +1078,12 @@ const getValorRecebidoBruto = (sale: any) => {
           )
       )
       .reduce(
-        (total, sale) =>
+        (
+          total,
+          sale
+        ) =>
           total +
-          getValorRecebido(
+          getValorRecebidoBruto(
             sale
           ),
         0
@@ -526,7 +1091,8 @@ const getValorRecebidoBruto = (sale: any) => {
 
   const pix =
     pixVendas -
-    trocoPix
+    trocoPix -
+    totalSaidasPix
 
   /*
   ============================================================
@@ -548,9 +1114,12 @@ const getValorRecebidoBruto = (sale: any) => {
           )
       )
       .reduce(
-        (total, sale) =>
+        (
+          total,
+          sale
+        ) =>
           total +
-          getValorRecebido(
+          getValorRecebidoBruto(
             sale
           ),
         0
@@ -576,9 +1145,12 @@ const getValorRecebidoBruto = (sale: any) => {
           )
       )
       .reduce(
-        (total, sale) =>
+        (
+          total,
+          sale
+        ) =>
           total +
-          getValorRecebido(
+          getValorRecebidoBruto(
             sale
           ),
         0
@@ -586,170 +1158,152 @@ const getValorRecebidoBruto = (sale: any) => {
 
   /*
   ============================================================
-  TOTAL VENDIDO
+  ADICIONAR SAÍDA
   ============================================================
   */
 
-  const totalVendido =
-  vendasDoCaixa.reduce(
-    (total, sale) =>
-      total +
-      Number(sale.total || 0) -
-      Number(sale.delivery_fee || 0),
-    0
-  )
-  const totalFretes =
-  vendasDoCaixa.reduce(
-    (total, sale) =>
-      total +
+  async function adicionarSaida() {
+    if (!cashRegister) {
+      alert(
+        "Não existe um caixa aberto."
+      )
+      return
+    }
+
+    const valor =
       Number(
-        sale.delivery_fee || 0
-      ),
-    0
-  )
-
-  /*
-  ============================================================
-  TOTAL RECEBIDO
-  ============================================================
-  */
-
-  const recebido =
-    dinheiroVendas -
-    trocoDinheiro +
-    pixVendas -
-    trocoPix +
-    debito +
-    credito
-
-  /*
-  ============================================================
-  CÁLCULO DO LUCRO
-  ============================================================
-  */
-
-  const calcularLucro = (
-    sale: any
-  ) => {
-    /*
-    Venda normal:
-    usa o lucro que foi salvo
-    na venda.
-    */
+        String(
+          outflowAmount
+        ).replace(
+          ",",
+          "."
+        )
+      )
 
     if (
-      sale.payment !==
-      "Fiado"
+      isNaN(valor) ||
+      valor <= 0
     ) {
-      return Number(
-        sale.profit || 0
+      alert(
+        "Informe um valor válido."
       )
+      return
     }
-
-    /*
-    Fiado recebido posteriormente.
-    */
 
     if (
-      !Array.isArray(
-        sale.products
-      )
+      !outflowDescription.trim()
     ) {
-      return Number(
-        sale.profit || 0
+      alert(
+        "Informe uma descrição para a saída."
       )
+      return
     }
 
-    const custoTotal =
-      sale.products.reduce(
-        (
-          custo: number,
-          item: any
-        ) => {
-          const quantity =
-            Number(
-              item.quantity ||
-                0
-            )
+    setSavingOutflow(true)
 
-          const purchasePrice =
-            Number(
-              item.purchasePrice ||
-                0
-            )
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("cash_outflows")
+      .insert({
+        cash_register_id:
+          cashRegister.id,
 
-          return (
-            custo +
-            purchasePrice *
-              quantity
-          )
-        },
-        0
+        amount:
+          valor,
+
+        type:
+          outflowType,
+
+        payment_method:
+          outflowPaymentMethod,
+
+        description:
+          outflowDescription.trim(),
+
+        created_at:
+          new Date().toISOString(),
+      })
+      .select()
+
+    if (error) {
+      console.error(
+        "ERRO AO REGISTRAR SAÍDA:",
+        error
       )
 
-    return (
-      getValorRecebido(
-        sale
-      ) -
-      custoTotal
+      alert(
+        `Não foi possível registrar a saída.\n\n${error.message}`
+      )
+
+      setSavingOutflow(false)
+      return
+    }
+
+    if (
+      data &&
+      data.length > 0
+    ) {
+      setOutflows([
+        data[0],
+        ...outflows,
+      ])
+    }
+
+    setOutflowAmount("")
+    setOutflowType(
+      "Compra/Reposição de estoque"
+    )
+    setOutflowPaymentMethod(
+      "Pix"
+    )
+    setOutflowDescription("")
+    setShowOutflowModal(false)
+    setSavingOutflow(false)
+
+    alert(
+      "Saída registrada com sucesso!"
     )
   }
+async function excluirSaida(id: number) {
+  const confirmacao = window.confirm(
+    "Tem certeza que deseja excluir esta saída?"
+  )
 
-  /*
-  ============================================================
-  LUCRO TOTAL
-  ============================================================
-  */
+  if (!confirmacao) {
+    return
+  }
 
-  const lucroTotal =
-    recebimentosDoCaixa.reduce(
-      (
-        total: number,
-        sale: any
-      ) => {
-        return (
-          total +
-          calcularLucro(
-            sale
-          )
-        )
-      },
-      0
+  const { error } = await supabase
+    .from("cash_outflows")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error(
+      "ERRO AO EXCLUIR SAÍDA:",
+      error
     )
 
-  /*
-  ============================================================
-  QUANTIDADE DE VENDAS
-  ============================================================
-  */
+    alert(
+      `Não foi possível excluir a saída.\n\n${error.message}`
+    )
 
-  const quantidadeVendas =
-    vendasDoCaixa.length
+    return
+  }
 
-  /*
-  ============================================================
-  FIADOS PENDENTES
-  ============================================================
-  */
+  setOutflows(
+    outflows.filter(
+      (outflow) =>
+        outflow.id !== id
+    )
+  )
 
-  const fiado =
-    vendasDoCaixa
-      .filter(
-        (sale) =>
-          sale.payment ===
-            "Fiado" &&
-          sale.status ===
-            "Pendente"
-      )
-      .reduce(
-        (total, sale) =>
-          total +
-          Number(
-            sale.total || 0
-          ),
-        0
-      )
-
+  alert(
+    "Saída excluída com sucesso!"
+  )
+}
   /*
   ============================================================
   ABRIR CAIXA
@@ -821,12 +1375,6 @@ const getValorRecebidoBruto = (sale: any) => {
     setOpeningAmount("")
     setShowOpenModal(false)
 
-    /*
-    Recarrega os dados para
-    aplicar imediatamente o filtro
-    do novo caixa.
-    */
-
     await loadData()
 
     alert(
@@ -882,7 +1430,7 @@ const getValorRecebidoBruto = (sale: any) => {
       dinheiroEsperado
 
     const totalRecebido =
-      recebido
+      totalRecebidoPeriodo
 
     setClosing(true)
 
@@ -955,6 +1503,7 @@ const getValorRecebidoBruto = (sale: any) => {
 
     setCashRegister(null)
     setSales([])
+    setOutflows([])
     setCountedCash("")
     setShowCloseModal(false)
     setClosing(false)
@@ -994,9 +1543,11 @@ const getValorRecebidoBruto = (sale: any) => {
 
   return (
     <div>
+
       {/* CABEÇALHO */}
 
       <div className="flex justify-between items-start gap-4">
+
         <div>
           <h1 className="text-3xl font-bold">
             Caixa
@@ -1030,14 +1581,19 @@ const getValorRecebidoBruto = (sale: any) => {
             🔒 Fechar caixa
           </button>
         )}
+
       </div>
 
       {/* STATUS */}
 
       {cashRegister ? (
+
         <div className="mt-6 bg-green-50 border border-green-200 p-5 rounded-xl">
+
           <div className="flex justify-between gap-4">
+
             <div>
+
               <p className="text-green-700 font-bold">
                 🟢 Caixa aberto
               </p>
@@ -1059,9 +1615,11 @@ const getValorRecebidoBruto = (sale: any) => {
                   ).toFixed(2)}
                 </strong>
               </p>
+
             </div>
 
             <div className="text-right">
+
               <p className="text-gray-500 text-sm">
                 Dinheiro esperado
               </p>
@@ -1072,11 +1630,17 @@ const getValorRecebidoBruto = (sale: any) => {
                   2
                 )}
               </p>
+
             </div>
+
           </div>
+
         </div>
+
       ) : (
+
         <div className="mt-6 bg-orange-50 border border-orange-200 p-5 rounded-xl">
+
           <p className="text-orange-700 font-bold">
             🔴 Caixa fechado
           </p>
@@ -1084,94 +1648,622 @@ const getValorRecebidoBruto = (sale: any) => {
           <p className="text-gray-600 mt-1">
             Abra um novo caixa para começar a contabilizar as vendas.
           </p>
+
         </div>
+
       )}
 
       {/* RESUMO */}
 
-     {/* RESUMO */}
+      <div className="grid grid-cols-2 xl:grid-cols-8 gap-6 mt-8">
 
-<div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mt-8">
+        <div className="bg-white p-6 rounded-xl shadow">
+          <p className="text-gray-500">
+            💰 Vendido
+          </p>
 
-  <div className="bg-white p-6 rounded-xl shadow">
-    <p className="text-gray-500">
-      💰 Vendido
-    </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Custo dos produtos das vendas pagas neste caixa.
+          </p>
 
-    <p className="text-sm text-gray-400 mt-1">
-      Quanto em vendas foi registrado neste caixa, sem incluir frete.
-    </p>
+          <h2 className="text-2xl font-bold mt-2">
+            R${" "}
+            {totalVendido.toFixed(2)}
+          </h2>
+        </div>
 
-    <h2 className="text-2xl font-bold mt-2">
-      R$ {totalVendido.toFixed(2)}
-    </h2>
-  </div>
+        <div className="bg-white p-6 rounded-xl shadow">
+          <p className="text-gray-500">
+            💵 Recebido
+          </p>
 
-  <div className="bg-white p-6 rounded-xl shadow">
-    <p className="text-gray-500">
-      💵 Recebido
-    </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Custo dos produtos que realmente foram recebidos.
+          </p>
 
-    <p className="text-sm text-gray-400 mt-1">
-      Quanto entrou pelas vendas, sem contar o valor do frete.
-    </p>
+          <h2 className="text-2xl font-bold text-green-600 mt-2">
+            R${" "}
+            {recebido.toFixed(2)}
+          </h2>
+        </div>
 
-    <h2 className="text-2xl font-bold text-green-600 mt-2">
-      R$ {recebido.toFixed(2)}
-    </h2>
-  </div>
+        <div className="bg-white p-6 rounded-xl shadow">
+          <p className="text-gray-500">
+            🚚 Fretes
+          </p>
 
-  <div className="bg-white p-6 rounded-xl shadow">
-    <p className="text-gray-500">
-      🚚 Fretes
-    </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Fretes realmente recebidos neste caixa.
+          </p>
 
-    <p className="text-sm text-gray-400 mt-1">
-      Total cobrado de entrega nas vendas deste caixa.
-    </p>
+          <h2 className="text-2xl font-bold mt-2">
+            R${" "}
+            {totalFretes.toFixed(2)}
+          </h2>
+        </div>
 
-    <h2 className="text-2xl font-bold mt-2">
-      R$ {totalFretes.toFixed(2)}
-    </h2>
-  </div>
+        <div className="bg-white p-6 rounded-xl shadow">
+          <p className="text-gray-500">
+            📈 Lucro
+          </p>
 
-  <div className="bg-white p-6 rounded-xl shadow">
-    <p className="text-gray-500">
-      📈 Lucro
-    </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Lucro das vendas recebidas, já descontando descontos.
+          </p>
 
-    <p className="text-sm text-gray-400 mt-1">
-      Lucro das vendas, sem considerar o frete como lucro.
-    </p>
+          <h2 className="text-2xl font-bold text-green-700 mt-2">
+            R${" "}
+            {lucroTotal.toFixed(2)}
+          </h2>
+        </div>
 
-    <h2 className="text-2xl font-bold mt-2">
-      R$ {lucroTotal.toFixed(2)}
-    </h2>
-  </div>
+        <div className="bg-white p-6 rounded-xl shadow">
+          <p className="text-gray-500">
+            🛒 Vendas
+          </p>
 
-  <div className="bg-white p-6 rounded-xl shadow">
-    <p className="text-gray-500">
-      🛒 Vendas
-    </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Quantidade de vendas pagas realizadas neste caixa.
+          </p>
 
-    <p className="text-sm text-gray-400 mt-1">
-      Quantidade de vendas realizadas neste caixa.
-    </p>
+          <h2 className="text-2xl font-bold mt-2">
+            {quantidadeVendas}
+          </h2>
+        </div>
 
-    <h2 className="text-2xl font-bold mt-2">
-      {quantidadeVendas}
-    </h2>
-  </div>
+        <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl shadow">
+          <p className="text-blue-700 font-semibold">
+            💳 Total recebido no período
+          </p>
+
+          <p className="text-sm text-blue-600 mt-1">
+            Valor realmente recebido pelas vendas e pelos fiados pagos neste caixa.
+          </p>
+
+          <h2 className="text-2xl font-bold text-blue-800 mt-2">
+            R${" "}
+            {totalRecebidoPeriodo.toFixed(2)}
+          </h2>
+        </div>
+
+        <div className="bg-red-50 border border-red-200 p-6 rounded-xl shadow">
+          <p className="text-red-700 font-semibold">
+            💸 Saídas
+          </p>
+
+          <p className="text-sm text-red-600 mt-1">
+            Total retirado deste caixa.
+          </p>
+
+          <h2 className="text-2xl font-bold text-red-700 mt-2">
+            R${" "}
+            {totalSaidas.toFixed(2)}
+          </h2>
+        </div>
+
+        <div className="bg-purple-50 border border-purple-200 p-6 rounded-xl shadow">
+          <p className="text-purple-700 font-semibold">
+            💰 Saldo disponível
+          </p>
+
+          <p className="text-sm text-purple-600 mt-1">
+            Inicial + recebido - saídas.
+          </p>
+
+          <h2 className="text-2xl font-bold text-purple-800 mt-2">
+            R${" "}
+            {saldoDisponivel.toFixed(2)}
+          </h2>
+        </div>
+
+      </div>
+
+      {/* LUCRO DISPONÍVEL */}
+
+      <div className="mt-6 bg-green-50 border border-green-200 p-5 rounded-xl">
+
+        <div className="flex justify-between items-center gap-4">
+
+          <div>
+
+            <p className="text-green-700 font-bold">
+              📈 Lucro disponível para guardar
+            </p>
+
+            <p className="text-sm text-green-600 mt-1">
+              Lucro das vendas menos as saídas classificadas como despesa.
+            </p>
+
+          </div>
+
+          <strong className="text-green-700 text-2xl">
+            R${" "}
+            {lucroDisponivel.toFixed(2)}
+          </strong>
+
+        </div>
+
+      </div>
+
+      {/* FIADO PENDENTE */}
+
+      <div className="mt-6 bg-red-50 border border-red-200 p-5 rounded-xl">
+
+        <div className="flex justify-between items-center gap-4">
+
+          <div>
+
+            <p className="text-red-700 font-bold">
+              📝 Fiado pendente
+            </p>
+
+            <p className="text-sm text-red-600 mt-1">
+              Vendas fiadas deste caixa que ainda não foram recebidas.
+            </p>
+
+          </div>
+
+          <strong className="text-red-700 text-xl">
+            R${" "}
+            {fiado.toFixed(2)}
+          </strong>
+
+        </div>
+
+      </div>
+
+      {/* BOTÕES */}
+
+      <div className="mt-8 flex flex-wrap gap-3">
+
+        <button
+          onClick={() =>
+            setShowDiagnostico(
+              !showDiagnostico
+            )
+          }
+          className="border border-yellow-400 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-100"
+        >
+          {showDiagnostico
+            ? "✕ Fechar diagnóstico"
+            : "🔎 Ver diagnóstico do total recebido"}
+        </button>
+
+        <button
+          onClick={() =>
+            setShowSaidas(
+              !showSaidas
+            )
+          }
+          className="border border-red-400 bg-red-50 text-red-800 px-4 py-2 rounded-lg font-semibold hover:bg-red-100"
+        >
+          {showSaidas
+            ? "✕ Fechar histórico de saídas"
+            : "💸 Ver histórico de saídas"}
+        </button>
+
+        <button
+          onClick={() =>
+            setShowOutflowModal(
+              true
+            )
+          }
+          disabled={!cashRegister}
+          className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50"
+        >
+          ➕ Adicionar saída
+        </button>
+
+      </div>
+
+      {/* DIAGNÓSTICO */}
+
+      {showDiagnostico && (
+        <div className="mt-4 bg-yellow-50 border border-yellow-300 p-6 rounded-xl shadow">
+
+          <h2 className="font-bold text-lg text-yellow-800">
+            🔎 Diagnóstico do total recebido
+          </h2>
+
+          <p className="text-sm text-yellow-700 mt-1">
+            Aqui você consegue conferir exatamente quais valores estão entrando no total recebido.
+          </p>
+
+          <div className="mt-4 space-y-3">
+
+            {recebimentosDoCaixa.map(
+              (sale, index) => {
+
+                const custo =
+                  getCustoProdutos(
+                    sale
+                  )
+
+                const frete =
+                  Number(
+                    sale.delivery_fee || 0
+                  )
+
+                const valorProdutos =
+                  Number(
+                    sale.total || 0
+                  ) - frete
+
+                const valorUsadoNoTotal =
+                  getValorRecebidoBruto(
+                    sale
+                  )
+
+                const dados =
+                  getDadosFinanceiros(
+                    sale
+                  )
+
+                return (
+                  <div
+                    key={`${sale.id}-${index}`}
+                    className="bg-white border rounded-lg p-4"
+                  >
+
+                    <div className="flex justify-between items-start gap-4">
+
+                      <div>
+
+                        <p className="font-bold">
+                          #{index + 1} — Venda ID: {sale.id}
+                        </p>
+
+                        <p className="text-gray-600">
+                          Tipo:{" "}
+                          {sale.payment === "Fiado"
+                            ? "Fiado recebido"
+                            : "Venda normal"}
+                        </p>
+
+                        <p className="text-gray-600">
+                          Cliente:{" "}
+                          {sale.customer ||
+                            "Não informado"}
+                        </p>
+
+                        <p className="text-gray-600">
+                          Pagamento:{" "}
+                          {sale.received_payment ||
+                            sale.payment}
+                        </p>
+
+                      </div>
+
+                      <div className="text-right">
+
+                        <p className="text-xs text-gray-500">
+                          Entra no total
+                        </p>
+
+                        <p className="text-xl font-bold text-yellow-800">
+                          R${" "}
+                          {valorUsadoNoTotal.toFixed(
+                            2
+                          )}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+
+                      <div className="bg-gray-50 p-3 rounded">
+
+                        <p className="text-xs text-gray-500">
+                          sale.total
+                        </p>
+
+                        <p className="font-bold">
+                          R${" "}
+                          {Number(
+                            sale.total || 0
+                          ).toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-gray-50 p-3 rounded">
+
+                        <p className="text-xs text-gray-500">
+                          Frete
+                        </p>
+
+                        <p className="font-bold">
+                          R${" "}
+                          {frete.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-gray-50 p-3 rounded">
+
+                        <p className="text-xs text-gray-500">
+                          Produtos
+                        </p>
+
+                        <p className="font-bold">
+                          R${" "}
+                          {valorProdutos.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-gray-50 p-3 rounded">
+
+                        <p className="text-xs text-gray-500">
+                          Custo
+                        </p>
+
+                        <p className="font-bold">
+                          R${" "}
+                          {custo.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-gray-50 p-3 rounded">
+
+                        <p className="text-xs text-gray-500">
+                          Lucro
+                        </p>
+
+                        <p className="font-bold text-green-700">
+                          R${" "}
+                          {dados.lucro.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-yellow-100 p-3 rounded border border-yellow-300">
+
+                        <p className="text-xs text-yellow-700">
+                          Entra no total
+                        </p>
+
+                        <p className="font-bold text-yellow-900">
+                          R${" "}
+                          {valorUsadoNoTotal.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    <div className="mt-3 text-sm text-gray-500 space-y-1">
+
+                      <p>
+                        received_total:{" "}
+                        {sale.received_total !== null &&
+                        sale.received_total !== undefined
+                          ? `R$ ${Number(
+                              sale.received_total
+                            ).toFixed(2)}`
+                          : "não informado"}
+                      </p>
+
+                      <p>
+                        amount_received:{" "}
+                        {sale.amount_received !== null &&
+                        sale.amount_received !== undefined
+                          ? `R$ ${Number(
+                              sale.amount_received
+                            ).toFixed(2)}`
+                          : "não informado"}
+                      </p>
+
+                      <p>
+                        discount: R${" "}
+                        {Number(
+                          sale.discount || 0
+                        ).toFixed(2)}
+                      </p>
+
+                      <p>
+                        delivery_fee: R${" "}
+                        {Number(
+                          sale.delivery_fee || 0
+                        ).toFixed(2)}
+                      </p>
+
+                    </div>
+
+                  </div>
+                )
+              }
+            )}
+
+            <div className="border-t-2 border-yellow-400 pt-4 mt-4">
+
+              <div className="flex justify-between font-bold text-lg">
+
+                <span>
+                  Soma calculada pelo sistema:
+                </span>
+
+                <span>
+                  R${" "}
+                  {recebimentosDoCaixa
+                    .reduce(
+                      (
+                        total,
+                        sale
+                      ) =>
+                        total +
+                        getValorRecebidoBruto(
+                          sale
+                        ),
+                      0
+                    )
+                    .toFixed(2)}
+                </span>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* HISTÓRICO DE SAÍDAS */}
+
+      {showSaidas && (
+        <div className="mt-4 bg-red-50 border border-red-300 p-6 rounded-xl shadow">
+
+          <div className="flex justify-between items-center gap-4">
+
+            <div>
+
+              <h2 className="font-bold text-lg text-red-800">
+                💸 Histórico de saídas
+              </h2>
+
+              <p className="text-sm text-red-700 mt-1">
+                Todas as saídas registradas neste caixa.
+              </p>
+
+            </div>
+
+            <button
+              onClick={() =>
+                setShowOutflowModal(
+                  true
+                )
+              }
+              className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold"
+            >
+              ➕ Nova saída
+            </button>
+
+          </div>
+
+          <div className="mt-5 space-y-3">
+
+            {outflows.length === 0 ? (
+              <p className="text-gray-600">
+                Nenhuma saída registrada neste caixa.
+              </p>
+            ) : (
+              outflows.map(
+                (outflow) => (
+                  <div
+                    key={outflow.id}
+                    className="bg-white border rounded-lg p-4"
+                  >
+
+                    <div className="flex justify-between gap-4">
+
+                      <div>
+
+                        <p className="font-bold">
+                          {outflow.description}
+                        </p>
+
+                        <p className="text-gray-500 text-sm mt-1">
+                          {outflow.type}
+                        </p>
+
+                        <p className="text-gray-500 text-sm">
+                          Pagamento:{" "}
+                          {outflow.payment_method}
+                        </p>
+
+                        <p className="text-gray-500 text-sm">
+                          {formatDate(
+                            outflow.created_at
+                          )}
+                        </p>
+
+                      </div>
+
+                     <div className="text-right">
+
+  <p className="font-bold text-red-700 text-lg">
+    - R${" "}
+    {Number(
+      outflow.amount || 0
+    ).toFixed(2)}
+  </p>
+
+  <button
+    onClick={() =>
+      excluirSaida(
+        outflow.id
+      )
+    }
+    className="text-red-600 text-sm mt-2 hover:underline"
+  >
+    🗑 Excluir
+  </button>
 
 </div>
+
+                    </div>
+
+                  </div>
+                )
+              )
+            )}
+
+            <div className="border-t-2 border-red-300 pt-4 mt-4 flex justify-between font-bold text-lg">
+
+              <span>
+                Total de saídas
+              </span>
+
+              <span className="text-red-700">
+                R${" "}
+                {totalSaidas.toFixed(2)}
+              </span>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
       {/* FORMAS DE PAGAMENTO */}
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
         <h2 className="font-bold text-lg">
           Formas de pagamento
         </h2>
 
+        <p className="text-sm text-gray-500 mt-1">
+          Aqui mostramos o valor realmente movimentado por cada forma de pagamento.
+        </p>
+
         <div className="mt-4 space-y-3">
+
           <p>
             💵 Dinheiro:
             <b>
@@ -1188,7 +2280,8 @@ const getValorRecebidoBruto = (sale: any) => {
             📱 Pix:
             <b>
               {" "}
-              R$ {pix.toFixed(2)}
+              R${" "}
+              {pix.toFixed(2)}
             </b>
           </p>
 
@@ -1196,7 +2289,8 @@ const getValorRecebidoBruto = (sale: any) => {
             💳 Débito:
             <b>
               {" "}
-              R$ {debito.toFixed(2)}
+              R${" "}
+              {debito.toFixed(2)}
             </b>
           </p>
 
@@ -1204,7 +2298,8 @@ const getValorRecebidoBruto = (sale: any) => {
             💳 Crédito:
             <b>
               {" "}
-              R$ {credito.toFixed(2)}
+              R${" "}
+              {credito.toFixed(2)}
             </b>
           </p>
 
@@ -1212,7 +2307,8 @@ const getValorRecebidoBruto = (sale: any) => {
             🔄 Trocos em dinheiro:
             <b>
               {" "}
-              R$ {trocoDinheiro.toFixed(2)}
+              R${" "}
+              {trocoDinheiro.toFixed(2)}
             </b>
           </p>
 
@@ -1220,236 +2316,340 @@ const getValorRecebidoBruto = (sale: any) => {
             📱 Trocos via Pix:
             <b>
               {" "}
-              R$ {trocoPix.toFixed(2)}
+              R${" "}
+              {trocoPix.toFixed(2)}
             </b>
           </p>
 
-          <p>
-            📝 Fiado pendente:
-            <b className="text-red-600">
-              {" "}
-              R$ {fiado.toFixed(2)}
-            </b>
-          </p>
+          <div className="border-t pt-3">
 
-          {fiadosRecebidos.length >
-            0 && (
-            <div className="border-t pt-3">
-              <p>
-                💰 Fiados recebidos:
-                <b className="text-green-700">
-                  {" "}
-                  R${" "}
-                  {fiadosRecebidos
-                    .reduce(
-                      (
-                        total,
-                        sale
-                      ) =>
-                        total +
-                        getValorRecebido(
-                          sale
-                        ),
-                      0
-                    )
-                    .toFixed(2)}
-                </b>
-              </p>
+            <div className="flex justify-between">
+              <span>
+                Custo dos produtos
+              </span>
+
+              <strong>
+                R${" "}
+                {recebido.toFixed(2)}
+              </strong>
             </div>
-          )}
 
-          <div className="border-t pt-3 flex justify-between">
-            <span className="font-bold">
-              Total recebido
-            </span>
+            <div className="flex justify-between mt-2">
+              <span>
+                Lucro
+              </span>
 
-            <strong className="text-green-700">
-              R$ {recebido.toFixed(2)}
-            </strong>
+              <strong>
+                R${" "}
+                {lucroTotal.toFixed(2)}
+              </strong>
+            </div>
+
+            <div className="flex justify-between mt-2">
+              <span>
+                Fretes
+              </span>
+
+              <strong>
+                R${" "}
+                {totalFretes.toFixed(2)}
+              </strong>
+            </div>
+
+            <div className="border-t mt-3 pt-3 flex justify-between font-bold">
+
+              <span>
+                💳 Total recebido no período
+              </span>
+
+              <strong className="text-blue-700">
+                R${" "}
+                {totalRecebidoPeriodo.toFixed(2)}
+              </strong>
+
+            </div>
+
           </div>
+
         </div>
+
       </div>
 
-      {/* ÚLTIMAS VENDAS */}
+      {/* FIADOS RECEBIDOS */}
 
-      <div className="mt-8 bg-white p-6 rounded-xl shadow">
-        <h2 className="font-bold text-lg">
-          Últimas vendas
-        </h2>
-
-        <div className="mt-4 space-y-3">
-          {vendasDoCaixa
-            .slice(0, 5)
-            .map(
-              (sale) => (
-                <div
-                  key={sale.id}
-                  className="border rounded-lg p-4 flex justify-between"
-                >
-                  <div>
-                    <p className="font-bold">
-                      {sale.product ||
-                        (
-                          Array.isArray(
-                            sale.products
-                          ) &&
-                          sale.products[0]
-                            ?.displayName
-                        ) ||
-                        "Venda"}
-                    </p>
-
-                    <p className="text-gray-500">
-                      {sale.payment}
-                    </p>
-
-                    <p className="text-gray-500">
-                      {formatDate(
-                        sale.date
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="font-bold">
-                      R${" "}
-                      {Number(
-                        sale.total || 0
-                      ).toFixed(2)}
-                    </p>
-
-                    {sale.payment ===
-                      "Dinheiro" &&
-                      Number(
-                        sale.change_amount ||
-                          0
-                      ) > 0 && (
-                        <p className="text-gray-500 text-sm">
-                          Troco: R${" "}
-                          {Number(
-                            sale.change_amount ||
-                              0
-                          ).toFixed(2)}{" "}
-                          {sale.change_method ===
-                          "Pix"
-                            ? "(Pix)"
-                            : "(Dinheiro)"}
-                        </p>
-                      )}
-
-                    {sale.payment ===
-                      "Fiado" &&
-                      sale.status ===
-                        "Pendente" && (
-                        <p className="text-red-600 text-sm">
-                          Pendente
-                        </p>
-                      )}
-
-                    {sale.payment !==
-                      "Fiado" &&
-                      sale.status ===
-                        "Pago" && (
-                        <p className="text-green-600 text-sm">
-                          Pago
-                        </p>
-                      )}
-                  </div>
-                </div>
-              )
-            )}
-
-          {vendasDoCaixa.length ===
-            0 && (
-            <p className="text-gray-500">
-              Nenhuma venda registrada neste caixa.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* FIADOS RECEBIDOS NESTE CAIXA */}
-
-      {fiadosRecebidos.length >
-        0 && (
+      {fiadosRecebidos.length > 0 && (
         <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
           <h2 className="font-bold text-lg">
             💰 Fiados recebidos neste caixa
           </h2>
 
           <div className="mt-4 space-y-3">
+
             {fiadosRecebidos.map(
-              (sale) => (
-                <div
-                  key={`fiado-${sale.id}`}
-                  className="border rounded-lg p-4 flex justify-between"
-                >
-                  <div>
-                    <p className="font-bold">
-                      {sale.customer ||
-                        "Cliente não informado"}
-                    </p>
+              (sale) => {
 
-                    <p className="text-gray-500">
-                      Venda original:{" "}
-                      {formatDate(
-                        sale.date
-                      )}
-                    </p>
+                const custo =
+                  getCustoProdutos(
+                    sale
+                  )
 
-                    <p className="text-gray-500">
-                      Recebido em:{" "}
-                      {formatDate(
-                        sale.received_at
-                      )}
-                    </p>
+                const valorRecebido =
+                  getValorRecebido(
+                    sale
+                  )
 
-                    <p className="text-gray-500">
-                      Forma:{" "}
-                      {sale.received_payment ||
-                        sale.payment}
-                    </p>
-                  </div>
+                const lucro =
+                  calcularLucro(
+                    sale
+                  )
 
-                  <div className="text-right">
-                    <p className="font-bold text-green-700">
-                      R${" "}
-                      {getValorRecebido(
-                        sale
-                      ).toFixed(2)}
-                    </p>
+                const frete =
+                  Number(
+                    sale.delivery_fee ||
+                      0
+                  )
+
+                return (
+                  <div
+                    key={`fiado-${sale.id}`}
+                    className="border rounded-lg p-4"
+                  >
+
+                    <div className="flex justify-between gap-4">
+
+                      <div>
+
+                        <p className="font-bold">
+                          {sale.customer ||
+                            "Cliente não informado"}
+                        </p>
+
+                        <p className="text-gray-500">
+                          Venda original:{" "}
+                          {formatDate(
+                            sale.date
+                          )}
+                        </p>
+
+                        <p className="text-gray-500">
+                          Recebido em:{" "}
+                          {formatDate(
+                            sale.received_at
+                          )}
+                        </p>
+
+                        <p className="text-gray-500">
+                          Forma:{" "}
+                          {sale.received_payment ||
+                            sale.payment}
+                        </p>
+
+                      </div>
+
+                      <div className="text-right">
+
+                        <p className="font-bold text-green-700">
+                          Total recebido: R${" "}
+                          {(
+                            valorRecebido +
+                            frete
+                          ).toFixed(2)}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4">
+
+                      <div className="bg-gray-50 rounded-lg p-3">
+
+                        <p className="text-xs text-gray-500">
+                          Custo
+                        </p>
+
+                        <p className="font-bold">
+                          R${" "}
+                          {custo.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-gray-50 rounded-lg p-3">
+
+                        <p className="text-xs text-gray-500">
+                          Frete
+                        </p>
+
+                        <p className="font-bold">
+                          R${" "}
+                          {frete.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-green-50 rounded-lg p-3">
+
+                        <p className="text-xs text-gray-500">
+                          Lucro
+                        </p>
+
+                        <p className="font-bold text-green-700">
+                          R${" "}
+                          {lucro.toFixed(2)}
+                        </p>
+
+                      </div>
+
+                      <div className="bg-blue-50 rounded-lg p-3">
+
+                        <p className="text-xs text-gray-500">
+                          Total
+                        </p>
+
+                        <p className="font-bold text-blue-700">
+                          R${" "}
+                          {(
+                            valorRecebido +
+                            frete
+                          ).toFixed(2)}
+                        </p>
+
+                      </div>
+
+                    </div>
 
                     {Number(
                       sale.discount ||
                         0
                     ) > 0 && (
-                      <p className="text-red-600 text-sm">
-                        Desconto: R${" "}
+                      <p className="text-red-600 text-sm mt-3">
+                        Desconto aplicado: R${" "}
                         {Number(
                           sale.discount
                         ).toFixed(2)}
                       </p>
                     )}
 
-                    <p className="text-green-600 text-sm mt-1">
-                      Lucro: R${" "}
-                      {calcularLucro(
-                        sale
-                      ).toFixed(2)}
-                    </p>
                   </div>
-                </div>
-              )
+                )
+              }
             )}
+
           </div>
+
         </div>
       )}
+
+      {/* ÚLTIMAS VENDAS */}
+
+      <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
+        <h2 className="font-bold text-lg">
+          Últimas vendas
+        </h2>
+
+        <div className="mt-4 space-y-3">
+
+          {vendasDoCaixa
+            .slice(0, 5)
+            .map(
+              (sale) => {
+
+                const dados =
+                  getDadosFinanceiros(
+                    sale
+                  )
+
+                return (
+                  <div
+                    key={sale.id}
+                    className="border rounded-lg p-4 flex justify-between"
+                  >
+
+                    <div>
+
+                      <p className="font-bold">
+                        {sale.product ||
+                          (
+                            Array.isArray(
+                              sale.products
+                            ) &&
+                            sale.products[0]
+                              ?.displayName
+                          ) ||
+                          "Venda"}
+                      </p>
+
+                      <p className="text-gray-500">
+                        Pagamento:{" "}
+                        {sale.payment}
+                      </p>
+
+                      <p className="text-gray-500">
+                        {formatDate(
+                          sale.date
+                        )}
+                      </p>
+
+                    </div>
+
+                    <div className="text-right">
+
+                      <p className="font-bold">
+                        Venda: R${" "}
+                        {Number(
+                          sale.total || 0
+                        ).toFixed(2)}
+                      </p>
+
+                      <p className="text-gray-500 text-sm">
+                        Custo: R${" "}
+                        {dados.custo.toFixed(2)}
+                      </p>
+
+                      <p className="text-green-600 text-sm">
+                        Lucro: R${" "}
+                        {dados.lucro.toFixed(2)}
+                      </p>
+
+                      {Number(
+                        sale.delivery_fee ||
+                          0
+                      ) > 0 && (
+                        <p className="text-gray-500 text-sm">
+                          Frete: R${" "}
+                          {Number(
+                            sale.delivery_fee
+                          ).toFixed(2)}
+                        </p>
+                      )}
+
+                    </div>
+
+                  </div>
+                )
+              }
+            )}
+
+          {vendasDoCaixa.length === 0 && (
+            <p className="text-gray-500">
+              Nenhuma venda registrada neste caixa.
+            </p>
+          )}
+
+        </div>
+
+      </div>
 
       {/* MODAL ABRIR CAIXA */}
 
       {showOpenModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+
             <h2 className="text-xl font-bold">
               🟢 Abrir caixa
             </h2>
@@ -1475,6 +2675,7 @@ const getValorRecebidoBruto = (sale: any) => {
             />
 
             <div className="flex justify-end gap-3 mt-6">
+
               <button
                 onClick={() =>
                   setShowOpenModal(
@@ -1494,8 +2695,171 @@ const getValorRecebidoBruto = (sale: any) => {
               >
                 Abrir caixa
               </button>
+
             </div>
+
           </div>
+
+        </div>
+      )}
+
+      {/* MODAL ADICIONAR SAÍDA */}
+
+      {showOutflowModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+
+            <h2 className="text-xl font-bold">
+              💸 Adicionar saída
+            </h2>
+
+            <p className="text-gray-500 mt-2">
+              Registre somente valores que realmente saíram do caixa.
+            </p>
+
+            <label className="block text-sm font-medium text-gray-700 mt-5">
+              Valor
+            </label>
+
+            <input
+              className="border p-3 rounded-lg w-full mt-1"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Ex.: 45,00"
+              value={
+                outflowAmount
+              }
+              onChange={(e) =>
+                setOutflowAmount(
+                  e.target.value
+                )
+              }
+            />
+
+            <label className="block text-sm font-medium text-gray-700 mt-4">
+              Tipo
+            </label>
+
+            <select
+              className="border p-3 rounded-lg w-full mt-1"
+              value={
+                outflowType
+              }
+              onChange={(e) =>
+                setOutflowType(
+                  e.target.value as
+                    | "Compra/Reposição de estoque"
+                    | "Despesa"
+                    | "Retirada"
+                )
+              }
+            >
+
+              <option value="Compra/Reposição de estoque">
+                🛒 Compra/Reposição de estoque
+              </option>
+
+              <option value="Despesa">
+                🧾 Despesa
+              </option>
+
+              <option value="Retirada">
+                👤 Retirada
+              </option>
+
+            </select>
+
+            <label className="block text-sm font-medium text-gray-700 mt-4">
+              Forma de pagamento
+            </label>
+
+            <select
+              className="border p-3 rounded-lg w-full mt-1"
+              value={
+                outflowPaymentMethod
+              }
+              onChange={(e) =>
+                setOutflowPaymentMethod(
+                  e.target.value as
+                    | "Dinheiro"
+                    | "Pix"
+                )
+              }
+            >
+
+              <option value="Pix">
+                📱 Pix
+              </option>
+
+              <option value="Dinheiro">
+                💵 Dinheiro
+              </option>
+
+            </select>
+
+            <label className="block text-sm font-medium text-gray-700 mt-4">
+              Descrição
+            </label>
+
+            <input
+              className="border p-3 rounded-lg w-full mt-1"
+              type="text"
+              placeholder="Ex.: Compra de bebida"
+              value={
+                outflowDescription
+              }
+              onChange={(e) =>
+                setOutflowDescription(
+                  e.target.value
+                )
+              }
+            />
+
+            <div className="flex justify-end gap-3 mt-6">
+
+              <button
+                onClick={() => {
+                  setShowOutflowModal(
+                    false
+                  )
+
+                  setOutflowAmount("")
+                  setOutflowDescription("")
+                  setOutflowType(
+                    "Compra/Reposição de estoque"
+                  )
+                  setOutflowPaymentMethod(
+                    "Pix"
+                  )
+                }}
+                disabled={
+                  savingOutflow
+                }
+                className="border px-4 py-2 rounded-lg disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={
+                  adicionarSaida
+                }
+                disabled={
+                  savingOutflow
+                }
+                className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold disabled:opacity-50"
+              >
+                {savingOutflow
+                  ? "Salvando..."
+                  : "Registrar saída"}
+              </button>
+
+            </div>
+
+          </div>
+
         </div>
       )}
 
@@ -1503,12 +2867,15 @@ const getValorRecebidoBruto = (sale: any) => {
 
       {showCloseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+
             <h2 className="text-xl font-bold">
               🔒 Fechamento de caixa
             </h2>
 
             <div className="mt-5 space-y-3">
+
               <div className="flex justify-between">
                 <span>
                   Dinheiro inicial
@@ -1525,12 +2892,23 @@ const getValorRecebidoBruto = (sale: any) => {
 
               <div className="flex justify-between">
                 <span>
-                  Dinheiro das vendas
+                  Dinheiro real recebido
                 </span>
 
                 <strong>
                   R${" "}
-                  {dinheiroVendas.toFixed(
+                  {dinheiroVendas.toFixed(2)}
+                </strong>
+              </div>
+
+              <div className="flex justify-between">
+                <span>
+                  Saídas em dinheiro
+                </span>
+
+                <strong className="text-red-700">
+                  - R${" "}
+                  {totalSaidasDinheiro.toFixed(
                     2
                   )}
                 </strong>
@@ -1550,6 +2928,7 @@ const getValorRecebidoBruto = (sale: any) => {
               </div>
 
               <div className="border-t pt-3 flex justify-between font-bold">
+
                 <span>
                   Dinheiro esperado
                 </span>
@@ -1560,16 +2939,19 @@ const getValorRecebidoBruto = (sale: any) => {
                     2
                   )}
                 </span>
+
               </div>
 
               <div className="flex justify-between">
                 <span>
-                  Pix
+                  Pix líquido
                 </span>
 
                 <strong>
                   R${" "}
-                  {pix.toFixed(2)}
+                  {pix.toFixed(
+                    2
+                  )}
                 </strong>
               </div>
 
@@ -1580,7 +2962,9 @@ const getValorRecebidoBruto = (sale: any) => {
 
                 <strong>
                   R${" "}
-                  {debito.toFixed(2)}
+                  {debito.toFixed(
+                    2
+                  )}
                 </strong>
               </div>
 
@@ -1591,48 +2975,102 @@ const getValorRecebidoBruto = (sale: any) => {
 
                 <strong>
                   R${" "}
-                  {credito.toFixed(2)}
+                  {credito.toFixed(
+                    2
+                  )}
                 </strong>
               </div>
 
-              {fiadosRecebidos.length >
-                0 && (
-                <div className="flex justify-between">
-                  <span>
-                    Fiados recebidos
-                  </span>
+              <div className="border-t pt-3 flex justify-between">
 
-                  <strong>
-                    R${" "}
-                    {fiadosRecebidos
-                      .reduce(
-                        (
-                          total,
-                          sale
-                        ) =>
-                          total +
-                          getValorRecebido(
-                            sale
-                          ),
-                        0
-                      )
-                      .toFixed(2)}
-                  </strong>
-                </div>
-              )}
-
-              <div className="border-t pt-3 flex justify-between font-bold">
                 <span>
-                  Total recebido
+                  Custo dos produtos
                 </span>
 
-                <span className="text-green-700">
+                <strong>
                   R${" "}
                   {recebido.toFixed(
                     2
                   )}
-                </span>
+                </strong>
+
               </div>
+
+              <div className="flex justify-between">
+
+                <span>
+                  Lucro
+                </span>
+
+                <strong>
+                  R${" "}
+                  {lucroTotal.toFixed(
+                    2
+                  )}
+                </strong>
+
+              </div>
+
+              <div className="flex justify-between">
+
+                <span>
+                  Fretes
+                </span>
+
+                <strong>
+                  R${" "}
+                  {totalFretes.toFixed(
+                    2
+                  )}
+                </strong>
+
+              </div>
+
+              <div className="flex justify-between">
+
+                <span>
+                  Saídas totais
+                </span>
+
+                <strong className="text-red-700">
+                  - R${" "}
+                  {totalSaidas.toFixed(
+                    2
+                  )}
+                </strong>
+
+              </div>
+
+              <div className="border-t pt-3 flex justify-between font-bold text-blue-700">
+
+                <span>
+                  Saldo disponível
+                </span>
+
+                <span>
+                  R${" "}
+                  {saldoDisponivel.toFixed(
+                    2
+                  )}
+                </span>
+
+              </div>
+
+              <div className="flex justify-between font-bold text-green-700">
+
+                <span>
+                  Lucro disponível
+                </span>
+
+                <span>
+                  R${" "}
+                  {lucroDisponivel.toFixed(
+                    2
+                  )}
+                </span>
+
+              </div>
+
             </div>
 
             <input
@@ -1654,6 +3092,7 @@ const getValorRecebidoBruto = (sale: any) => {
             {countedCash !==
               "" && (
               <div className="mt-4 bg-gray-50 rounded-lg p-4">
+
                 <p className="text-gray-500">
                   Diferença
                 </p>
@@ -1681,12 +3120,16 @@ const getValorRecebidoBruto = (sale: any) => {
                       )
                     ) -
                     dinheiroEsperado
-                  ).toFixed(2)}
+                  ).toFixed(
+                    2
+                  )}
                 </p>
+
               </div>
             )}
 
             <div className="flex justify-end gap-3 mt-6">
+
               <button
                 onClick={() =>
                   setShowCloseModal(
@@ -1714,10 +3157,14 @@ const getValorRecebidoBruto = (sale: any) => {
                   ? "Fechando..."
                   : "Confirmar fechamento"}
               </button>
+
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   )
 }
