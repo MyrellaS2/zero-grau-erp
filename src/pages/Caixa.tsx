@@ -30,6 +30,21 @@ function Caixa() {
   const [openingAmount, setOpeningAmount] =
     useState("")
 
+  const [cashName, setCashName] =
+    useState("")
+
+  const [closedCashRegisters, setClosedCashRegisters] =
+    useState<any[]>([])
+
+  const [showClosedHistory, setShowClosedHistory] =
+    useState(false)
+
+  const [selectedClosedCash, setSelectedClosedCash] =
+    useState<any | null>(null)
+
+  const [closedCashDetails, setClosedCashDetails] =
+    useState<any | null>(null)
+
   const [countedCash, setCountedCash] =
     useState("")
 
@@ -55,25 +70,437 @@ function Caixa() {
   const [savingOutflow, setSavingOutflow] =
     useState(false)
 
-  useEffect(() => {
-    loadData()
+  /*
+  ============================================================
+  CARREGA HISTÓRICO DE CAIXAS FECHADOS
+  ============================================================
+  */
 
-    const handleFocus = () => {
-      loadData()
+  async function loadClosedCashRegisters() {
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("cash_registers")
+      .select("*")
+      .eq("status", "Fechado")
+      .order("closed_at", {
+        ascending: false,
+      })
+
+    if (error) {
+      console.error(
+        "ERRO AO CARREGAR HISTÓRICO DE CAIXAS:",
+        error
+      )
+
+      return
     }
 
-    window.addEventListener(
-      "focus",
-      handleFocus
+    setClosedCashRegisters(
+      data || []
     )
+  }
 
-    return () => {
-      window.removeEventListener(
-        "focus",
-        handleFocus
+  /*
+  ============================================================
+  FORMATA DATA
+  ============================================================
+  */
+
+  function formatDate(
+    date: string | null
+  ) {
+    if (!date) return "-"
+
+    return new Intl.DateTimeFormat(
+      "pt-BR",
+      {
+        timeZone:
+          "America/Sao_Paulo",
+
+        dateStyle: "short",
+        timeStyle: "medium",
+      }
+    ).format(
+      new Date(date)
+    )
+  }
+
+  /*
+  ============================================================
+  CUSTO DOS PRODUTOS
+  ============================================================
+  */
+
+  const getCustoProdutos = (
+    sale: any
+  ) => {
+    if (
+      !Array.isArray(
+        sale.products
+      )
+    ) {
+      return 0
+    }
+
+    return sale.products.reduce(
+      (
+        total: number,
+        item: any
+      ) => {
+        const quantity =
+          Number(
+            item.quantity ||
+              0
+          )
+
+        const purchasePrice =
+          Number(
+            item.purchasePrice ||
+              0
+          )
+
+        return (
+          total +
+          purchasePrice *
+            quantity
+        )
+      },
+      0
+    )
+  }
+
+  /*
+  ============================================================
+  CARREGA DETALHES DE CAIXA FECHADO
+  ============================================================
+  */
+
+  async function carregarDetalhesCaixaFechado(
+    cash: any
+  ) {
+    /*
+    ------------------------------------------------------------
+    VENDAS NORMAIS DO CAIXA
+    ------------------------------------------------------------
+    */
+
+    const {
+      data: salesData,
+      error: salesError,
+    } = await supabase
+      .from("sales")
+      .select("*")
+      .gte(
+        "date",
+        cash.opened_at
+      )
+      .lte(
+        "date",
+        cash.closed_at
+      )
+
+    if (salesError) {
+      console.error(
+        "ERRO AO CARREGAR VENDAS DO CAIXA FECHADO:",
+        salesError
       )
     }
-  }, [])
+
+    /*
+    ------------------------------------------------------------
+    FIADOS RECEBIDOS NESTE CAIXA
+    ------------------------------------------------------------
+    */
+
+    const {
+      data: fiadosData,
+      error: fiadosError,
+    } = await supabase
+      .from("sales")
+      .select("*")
+      .eq(
+        "status",
+        "Pago"
+      )
+      .eq(
+        "received_cash_register_id",
+        cash.id
+      )
+
+    if (fiadosError) {
+      console.error(
+        "ERRO AO CARREGAR FIADOS DO CAIXA FECHADO:",
+        fiadosError
+      )
+    }
+
+    /*
+    ------------------------------------------------------------
+    JUNTA E REMOVE DUPLICAÇÕES
+    ------------------------------------------------------------
+    */
+
+    const combinedSales = [
+      ...(salesData || []),
+      ...(fiadosData || []),
+    ]
+
+    const uniqueSales =
+      Array.from(
+        new Map(
+          combinedSales.map(
+            (sale) => [
+              sale.id,
+              sale,
+            ]
+          )
+        ).values()
+      )
+
+    /*
+    ------------------------------------------------------------
+    TOTAL RECEBIDO
+    ------------------------------------------------------------
+    */
+
+    let totalRecebido =
+      0
+
+    uniqueSales.forEach(
+      (sale: any) => {
+        if (
+          sale.status !==
+          "Pago"
+        ) {
+          return
+        }
+
+        /*
+        FIADO ANTIGO
+        */
+
+        if (
+          sale.payment ===
+          "Fiado"
+        ) {
+          if (
+            String(
+              sale.received_cash_register_id
+            ) !==
+            String(
+              cash.id
+            )
+          ) {
+            return
+          }
+
+          /*
+          received_total representa
+          o valor realmente pago.
+          */
+
+          totalRecebido +=
+            Number(
+              sale.received_total ||
+                0
+            )
+
+          return
+        }
+
+        /*
+        VENDA NORMAL
+        */
+
+        totalRecebido +=
+          Number(
+            sale.total || 0
+          )
+      }
+    )
+
+    /*
+    ------------------------------------------------------------
+    FRETES
+    ------------------------------------------------------------
+    */
+
+    let totalFretes =
+      0
+
+    uniqueSales.forEach(
+      (sale: any) => {
+        if (
+          sale.status !==
+          "Pago"
+        ) {
+          return
+        }
+
+        if (
+          sale.payment ===
+          "Fiado"
+        ) {
+          if (
+            String(
+              sale.received_cash_register_id
+            ) !==
+            String(
+              cash.id
+            )
+          ) {
+            return
+          }
+        }
+
+        totalFretes +=
+          Number(
+            sale.delivery_fee ||
+              0
+          )
+      }
+    )
+
+    /*
+    ------------------------------------------------------------
+    LUCRO
+    ------------------------------------------------------------
+    */
+
+    let lucroHistorico =
+      0
+
+    uniqueSales.forEach(
+      (sale: any) => {
+        if (
+          sale.status !==
+          "Pago"
+        ) {
+          return
+        }
+
+        /*
+        FIADO
+        */
+
+        if (
+          sale.payment ===
+          "Fiado"
+        ) {
+          if (
+            String(
+              sale.received_cash_register_id
+            ) !==
+            String(
+              cash.id
+            )
+          ) {
+            return
+          }
+
+          const custo =
+            getCustoProdutos(
+              sale
+            )
+
+          const recebidoProdutos =
+            Number(
+              sale.received_total ||
+                0
+            ) -
+            Number(
+              sale.delivery_fee ||
+                0
+            )
+
+          lucroHistorico +=
+            recebidoProdutos -
+            custo
+
+          return
+        }
+
+        /*
+        VENDA NORMAL
+        */
+
+        lucroHistorico +=
+          Number(
+            sale.profit || 0
+          )
+      }
+    )
+
+    /*
+    ------------------------------------------------------------
+    SAÍDAS
+    ------------------------------------------------------------
+    */
+
+    const {
+      data: outflowsData,
+      error: outflowsError,
+    } = await supabase
+      .from("cash_outflows")
+      .select("*")
+      .eq(
+        "cash_register_id",
+        cash.id
+      )
+
+    if (outflowsError) {
+      console.error(
+        "ERRO AO CARREGAR SAÍDAS DO CAIXA FECHADO:",
+        outflowsError
+      )
+    }
+
+    const totalSaidas =
+      (
+        outflowsData || []
+      ).reduce(
+        (
+          total: number,
+          outflow: any
+        ) =>
+          total +
+          Number(
+            outflow.amount ||
+              0
+          ),
+        0
+      )
+
+    /*
+    ------------------------------------------------------------
+    SALDO DISPONÍVEL FINAL
+    ------------------------------------------------------------
+    */
+
+    const saldoFinal =
+      Number(
+        cash.opening_amount ||
+          0
+      ) +
+      totalRecebido -
+      totalSaidas
+
+    setClosedCashDetails({
+      recebidoHistorico:
+        totalRecebido,
+
+      fretesHistorico:
+        totalFretes,
+
+      lucroHistorico:
+        lucroHistorico,
+
+      saldoFinal:
+        saldoFinal,
+    })
+  }
 
   /*
   ============================================================
@@ -90,10 +517,16 @@ function Caixa() {
     } = await supabase
       .from("cash_registers")
       .select("*")
-      .eq("status", "Aberto")
-      .order("opened_at", {
-        ascending: false,
-      })
+      .eq(
+        "status",
+        "Aberto"
+      )
+      .order(
+        "opened_at",
+        {
+          ascending: false,
+        }
+      )
       .limit(1)
 
     if (cashError) {
@@ -109,7 +542,9 @@ function Caixa() {
         ? cashData[0]
         : null
 
-    setCashRegister(currentCash)
+    setCashRegister(
+      currentCash
+    )
 
     if (!currentCash) {
       setSales([])
@@ -134,9 +569,12 @@ function Caixa() {
         "date",
         currentCash.opened_at
       )
-      .order("date", {
-        ascending: false,
-      })
+      .order(
+        "date",
+        {
+          ascending: false,
+        }
+      )
 
     if (normalSalesError) {
       console.error(
@@ -157,7 +595,10 @@ function Caixa() {
     } = await supabase
       .from("sales")
       .select("*")
-      .eq("status", "Pago")
+      .eq(
+        "status",
+        "Pago"
+      )
       .eq(
         "received_cash_register_id",
         currentCash.id
@@ -186,9 +627,12 @@ function Caixa() {
         "cash_register_id",
         currentCash.id
       )
-      .order("created_at", {
-        ascending: false,
-      })
+      .order(
+        "created_at",
+        {
+          ascending: false,
+        }
+      )
 
     if (outflowsError) {
       console.error(
@@ -241,28 +685,31 @@ function Caixa() {
 
   /*
   ============================================================
-  FORMATA DATA
+  USE EFFECT
   ============================================================
   */
 
-  function formatDate(
-    date: string | null
-  ) {
-    if (!date) return "-"
+  useEffect(() => {
+    loadData()
+    loadClosedCashRegisters()
 
-    return new Intl.DateTimeFormat(
-      "pt-BR",
-      {
-        timeZone:
-          "America/Sao_Paulo",
+    const handleFocus = () => {
+      loadData()
+      loadClosedCashRegisters()
+    }
 
-        dateStyle: "short",
-        timeStyle: "medium",
-      }
-    ).format(
-      new Date(date)
+    window.addEventListener(
+      "focus",
+      handleFocus
     )
-  }
+
+    return () => {
+      window.removeEventListener(
+        "focus",
+        handleFocus
+      )
+    }
+  }, [])
 
   /*
   ============================================================
@@ -274,7 +721,9 @@ function Caixa() {
     cashRegister
       ? sales.filter(
           (sale) => {
-            if (!sale.date) {
+            if (
+              !sale.date
+            ) {
               return false
             }
 
@@ -350,7 +799,9 @@ function Caixa() {
               return false
             }
 
-            if (!sale.date) {
+            if (
+              !sale.date
+            ) {
               return false
             }
 
@@ -449,50 +900,6 @@ function Caixa() {
           }
         )
       : []
-
-  /*
-  ============================================================
-  CUSTO DOS PRODUTOS
-  ============================================================
-  */
-
-  const getCustoProdutos = (
-    sale: any
-  ) => {
-    if (
-      !Array.isArray(
-        sale.products
-      )
-    ) {
-      return 0
-    }
-
-    return sale.products.reduce(
-      (
-        total: number,
-        item: any
-      ) => {
-        const quantity =
-          Number(
-            item.quantity ||
-              0
-          )
-
-        const purchasePrice =
-          Number(
-            item.purchasePrice ||
-              0
-          )
-
-        return (
-          total +
-          purchasePrice *
-            quantity
-        )
-      },
-      0
-    )
-  }
 
   /*
   ============================================================
@@ -676,7 +1083,8 @@ function Caixa() {
     */
 
     if (
-      sale.payment !== "Fiado"
+      sale.payment !==
+      "Fiado"
     ) {
       return Number(
         sale.total || 0
@@ -686,25 +1094,12 @@ function Caixa() {
     /*
     FIADO
 
-    received_total = produtos recebidos
-    depois do desconto.
-
-    Frete é acrescentado uma única vez.
+    received_total já representa
+    o valor efetivamente recebido.
     */
 
-    const produtosRecebidos =
-      Number(
-        sale.received_total || 0
-      )
-
-    const frete =
-      Number(
-        sale.delivery_fee || 0
-      )
-
-    return (
-      produtosRecebidos +
-      frete
+    return Number(
+      sale.received_total || 0
     )
   }
 
@@ -795,23 +1190,11 @@ function Caixa() {
       (
         total,
         sale
-      ) => {
-        const valorProdutos =
-          getValorRecebido(
-            sale
-          )
-
-        const frete =
-          Number(
-            sale.delivery_fee || 0
-          )
-
-        return (
-          total +
-          valorProdutos +
-          frete
-        )
-      },
+      ) =>
+        total +
+        getValorRecebidoBruto(
+          sale
+        ),
       0
     )
 
@@ -1010,12 +1393,6 @@ function Caixa() {
   ============================================================
   SALDO DISPONÍVEL
   ============================================================
-
-  Dinheiro inicial
-  + total recebido
-  - saídas
-
-  ============================================================
   */
 
   const saldoDisponivel =
@@ -1029,13 +1406,6 @@ function Caixa() {
   /*
   ============================================================
   LUCRO DISPONÍVEL
-  ============================================================
-
-  Lucro
-  - despesas
-
-  Compra de estoque e retirada
-  não reduzem o lucro disponível.
   ============================================================
   */
 
@@ -1266,44 +1636,60 @@ function Caixa() {
       "Saída registrada com sucesso!"
     )
   }
-async function excluirSaida(id: number) {
-  const confirmacao = window.confirm(
-    "Tem certeza que deseja excluir esta saída?"
-  )
 
-  if (!confirmacao) {
-    return
-  }
+  /*
+  ============================================================
+  EXCLUIR SAÍDA
+  ============================================================
+  */
 
-  const { error } = await supabase
-    .from("cash_outflows")
-    .delete()
-    .eq("id", id)
+  async function excluirSaida(
+    id: number
+  ) {
+    const confirmacao =
+      window.confirm(
+        "Tem certeza que deseja excluir esta saída?"
+      )
 
-  if (error) {
-    console.error(
-      "ERRO AO EXCLUIR SAÍDA:",
-      error
+    if (!confirmacao) {
+      return
+    }
+
+    const {
+      error,
+    } = await supabase
+      .from("cash_outflows")
+      .delete()
+      .eq(
+        "id",
+        id
+      )
+
+    if (error) {
+      console.error(
+        "ERRO AO EXCLUIR SAÍDA:",
+        error
+      )
+
+      alert(
+        `Não foi possível excluir a saída.\n\n${error.message}`
+      )
+
+      return
+    }
+
+    setOutflows(
+      outflows.filter(
+        (outflow) =>
+          outflow.id !== id
+      )
     )
 
     alert(
-      `Não foi possível excluir a saída.\n\n${error.message}`
+      "Saída excluída com sucesso!"
     )
-
-    return
   }
 
-  setOutflows(
-    outflows.filter(
-      (outflow) =>
-        outflow.id !== id
-    )
-  )
-
-  alert(
-    "Saída excluída com sucesso!"
-  )
-}
   /*
   ============================================================
   ABRIR CAIXA
@@ -1344,6 +1730,10 @@ async function excluirSaida(id: number) {
         "cash_registers"
       )
       .insert({
+        name:
+          cashName.trim() ||
+          null,
+
         opening_amount:
           valor,
 
@@ -1369,10 +1759,12 @@ async function excluirSaida(id: number) {
     }
 
     setCashRegister(
-      data?.[0] || null
+      data?.[0] ||
+        null
     )
 
     setOpeningAmount("")
+    setCashName("")
     setShowOpenModal(false)
 
     await loadData()
@@ -1508,6 +1900,8 @@ async function excluirSaida(id: number) {
     setShowCloseModal(false)
     setClosing(false)
 
+    await loadClosedCashRegisters()
+
     alert(
       `Caixa fechado com sucesso!\n\nDiferença: R$ ${diferenca.toFixed(
         2
@@ -1587,7 +1981,6 @@ async function excluirSaida(id: number) {
       {/* STATUS */}
 
       {cashRegister ? (
-
         <div className="mt-6 bg-green-50 border border-green-200 p-5 rounded-xl">
 
           <div className="flex justify-between gap-4">
@@ -1604,6 +1997,15 @@ async function excluirSaida(id: number) {
                   cashRegister.opened_at
                 )}
               </p>
+
+              {cashRegister.name && (
+                <p className="text-gray-600 mt-1">
+                  Nome:{" "}
+                  <strong>
+                    {cashRegister.name}
+                  </strong>
+                </p>
+              )}
 
               <p className="text-gray-600 mt-1">
                 Dinheiro inicial:{" "}
@@ -1636,9 +2038,7 @@ async function excluirSaida(id: number) {
           </div>
 
         </div>
-
       ) : (
-
         <div className="mt-6 bg-orange-50 border border-orange-200 p-5 rounded-xl">
 
           <p className="text-orange-700 font-bold">
@@ -1650,7 +2050,6 @@ async function excluirSaida(id: number) {
           </p>
 
         </div>
-
       )}
 
       {/* RESUMO */}
@@ -1864,6 +2263,19 @@ async function excluirSaida(id: number) {
 
         <button
           onClick={() =>
+            setShowClosedHistory(
+              !showClosedHistory
+            )
+          }
+          className="border border-blue-400 bg-blue-50 text-blue-800 px-4 py-2 rounded-lg font-semibold hover:bg-blue-100"
+        >
+          {showClosedHistory
+            ? "✕ Fechar histórico de caixas"
+            : "📚 Histórico de caixas fechados"}
+        </button>
+
+        <button
+          onClick={() =>
             setShowOutflowModal(
               true
             )
@@ -1875,6 +2287,89 @@ async function excluirSaida(id: number) {
         </button>
 
       </div>
+
+      {/* HISTÓRICO DE CAIXAS */}
+
+      {showClosedHistory && (
+        <div className="mt-4 bg-blue-50 border border-blue-300 p-6 rounded-xl shadow">
+
+          <h2 className="font-bold text-lg text-blue-800">
+            📚 Histórico de caixas fechados
+          </h2>
+
+          <p className="text-sm text-blue-700 mt-1">
+            Consulte os fechamentos anteriores.
+          </p>
+
+          <div className="mt-5 space-y-3">
+
+            {closedCashRegisters.length === 0 ? (
+              <p className="text-gray-600">
+                Nenhum caixa fechado encontrado.
+              </p>
+            ) : (
+              closedCashRegisters.map(
+                (closedCash) => (
+                  <div
+                    key={closedCash.id}
+                    className="bg-white border rounded-lg p-4"
+                  >
+
+                    <div className="flex justify-between items-center gap-4">
+
+                      <div>
+
+                        <p className="font-bold text-lg">
+                          {closedCash.name ||
+                            `Caixa #${closedCash.id}`}
+                        </p>
+
+                        <p className="text-gray-500 text-sm">
+                          Aberto:{" "}
+                          {formatDate(
+                            closedCash.opened_at
+                          )}
+                        </p>
+
+                        <p className="text-gray-500 text-sm">
+                          Fechado:{" "}
+                          {formatDate(
+                            closedCash.closed_at
+                          )}
+                        </p>
+
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setSelectedClosedCash(
+                            closedCash
+                          )
+
+                          setClosedCashDetails(
+                            null
+                          )
+
+                          carregarDetalhesCaixaFechado(
+                            closedCash
+                          )
+                        }}
+                        className="bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold"
+                      >
+                        👁 Ver detalhes
+                      </button>
+
+                    </div>
+
+                  </div>
+                )
+              )
+            )}
+
+          </div>
+
+        </div>
+      )}
 
       {/* DIAGNÓSTICO */}
 
@@ -1892,7 +2387,10 @@ async function excluirSaida(id: number) {
           <div className="mt-4 space-y-3">
 
             {recebimentosDoCaixa.map(
-              (sale, index) => {
+              (
+                sale,
+                index
+              ) => {
 
                 const custo =
                   getCustoProdutos(
@@ -1930,12 +2428,14 @@ async function excluirSaida(id: number) {
                       <div>
 
                         <p className="font-bold">
-                          #{index + 1} — Venda ID: {sale.id}
+                          #{index + 1} — Venda ID:{" "}
+                          {sale.id}
                         </p>
 
                         <p className="text-gray-600">
                           Tipo:{" "}
-                          {sale.payment === "Fiado"
+                          {sale.payment ===
+                          "Fiado"
                             ? "Fiado recebido"
                             : "Venda normal"}
                         </p>
@@ -1974,7 +2474,6 @@ async function excluirSaida(id: number) {
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
 
                       <div className="bg-gray-50 p-3 rounded">
-
                         <p className="text-xs text-gray-500">
                           sale.total
                         </p>
@@ -1985,11 +2484,9 @@ async function excluirSaida(id: number) {
                             sale.total || 0
                           ).toFixed(2)}
                         </p>
-
                       </div>
 
                       <div className="bg-gray-50 p-3 rounded">
-
                         <p className="text-xs text-gray-500">
                           Frete
                         </p>
@@ -1998,11 +2495,9 @@ async function excluirSaida(id: number) {
                           R${" "}
                           {frete.toFixed(2)}
                         </p>
-
                       </div>
 
                       <div className="bg-gray-50 p-3 rounded">
-
                         <p className="text-xs text-gray-500">
                           Produtos
                         </p>
@@ -2011,11 +2506,9 @@ async function excluirSaida(id: number) {
                           R${" "}
                           {valorProdutos.toFixed(2)}
                         </p>
-
                       </div>
 
                       <div className="bg-gray-50 p-3 rounded">
-
                         <p className="text-xs text-gray-500">
                           Custo
                         </p>
@@ -2024,11 +2517,9 @@ async function excluirSaida(id: number) {
                           R${" "}
                           {custo.toFixed(2)}
                         </p>
-
                       </div>
 
                       <div className="bg-gray-50 p-3 rounded">
-
                         <p className="text-xs text-gray-500">
                           Lucro
                         </p>
@@ -2037,20 +2528,19 @@ async function excluirSaida(id: number) {
                           R${" "}
                           {dados.lucro.toFixed(2)}
                         </p>
-
                       </div>
 
                       <div className="bg-yellow-100 p-3 rounded border border-yellow-300">
-
                         <p className="text-xs text-yellow-700">
                           Entra no total
                         </p>
 
                         <p className="font-bold text-yellow-900">
                           R${" "}
-                          {valorUsadoNoTotal.toFixed(2)}
+                          {valorUsadoNoTotal.toFixed(
+                            2
+                          )}
                         </p>
-
                       </div>
 
                     </div>
@@ -2059,8 +2549,10 @@ async function excluirSaida(id: number) {
 
                       <p>
                         received_total:{" "}
-                        {sale.received_total !== null &&
-                        sale.received_total !== undefined
+                        {sale.received_total !==
+                          null &&
+                        sale.received_total !==
+                          undefined
                           ? `R$ ${Number(
                               sale.received_total
                             ).toFixed(2)}`
@@ -2069,8 +2561,10 @@ async function excluirSaida(id: number) {
 
                       <p>
                         amount_received:{" "}
-                        {sale.amount_received !== null &&
-                        sale.amount_received !== undefined
+                        {sale.amount_received !==
+                          null &&
+                        sale.amount_received !==
+                          undefined
                           ? `R$ ${Number(
                               sale.amount_received
                             ).toFixed(2)}`
@@ -2080,14 +2574,16 @@ async function excluirSaida(id: number) {
                       <p>
                         discount: R${" "}
                         {Number(
-                          sale.discount || 0
+                          sale.discount ||
+                            0
                         ).toFixed(2)}
                       </p>
 
                       <p>
                         delivery_fee: R${" "}
                         {Number(
-                          sale.delivery_fee || 0
+                          sale.delivery_fee ||
+                            0
                         ).toFixed(2)}
                       </p>
 
@@ -2203,27 +2699,28 @@ async function excluirSaida(id: number) {
 
                       </div>
 
-                     <div className="text-right">
+                      <div className="text-right">
 
-  <p className="font-bold text-red-700 text-lg">
-    - R${" "}
-    {Number(
-      outflow.amount || 0
-    ).toFixed(2)}
-  </p>
+                        <p className="font-bold text-red-700 text-lg">
+                          - R${" "}
+                          {Number(
+                            outflow.amount ||
+                              0
+                          ).toFixed(2)}
+                        </p>
 
-  <button
-    onClick={() =>
-      excluirSaida(
-        outflow.id
-      )
-    }
-    className="text-red-600 text-sm mt-2 hover:underline"
-  >
-    🗑 Excluir
-  </button>
+                        <button
+                          onClick={() =>
+                            excluirSaida(
+                              outflow.id
+                            )
+                          }
+                          className="text-red-600 text-sm mt-2 hover:underline"
+                        >
+                          🗑 Excluir
+                        </button>
 
-</div>
+                      </div>
 
                     </div>
 
@@ -2451,10 +2948,9 @@ async function excluirSaida(id: number) {
 
                         <p className="font-bold text-green-700">
                           Total recebido: R${" "}
-                          {(
-                            valorRecebido +
-                            frete
-                          ).toFixed(2)}
+                          {valorRecebido.toFixed(
+                            2
+                          )}
                         </p>
 
                       </div>
@@ -2471,7 +2967,9 @@ async function excluirSaida(id: number) {
 
                         <p className="font-bold">
                           R${" "}
-                          {custo.toFixed(2)}
+                          {custo.toFixed(
+                            2
+                          )}
                         </p>
 
                       </div>
@@ -2484,7 +2982,9 @@ async function excluirSaida(id: number) {
 
                         <p className="font-bold">
                           R${" "}
-                          {frete.toFixed(2)}
+                          {frete.toFixed(
+                            2
+                          )}
                         </p>
 
                       </div>
@@ -2497,7 +2997,9 @@ async function excluirSaida(id: number) {
 
                         <p className="font-bold text-green-700">
                           R${" "}
-                          {lucro.toFixed(2)}
+                          {lucro.toFixed(
+                            2
+                          )}
                         </p>
 
                       </div>
@@ -2510,10 +3012,9 @@ async function excluirSaida(id: number) {
 
                         <p className="font-bold text-blue-700">
                           R${" "}
-                          {(
-                            valorRecebido +
-                            frete
-                          ).toFixed(2)}
+                          {valorRecebido.toFixed(
+                            2
+                          )}
                         </p>
 
                       </div>
@@ -2528,7 +3029,9 @@ async function excluirSaida(id: number) {
                         Desconto aplicado: R${" "}
                         {Number(
                           sale.discount
-                        ).toFixed(2)}
+                        ).toFixed(
+                          2
+                        )}
                       </p>
                     )}
 
@@ -2606,12 +3109,16 @@ async function excluirSaida(id: number) {
 
                       <p className="text-gray-500 text-sm">
                         Custo: R${" "}
-                        {dados.custo.toFixed(2)}
+                        {dados.custo.toFixed(
+                          2
+                        )}
                       </p>
 
                       <p className="text-green-600 text-sm">
                         Lucro: R${" "}
-                        {dados.lucro.toFixed(2)}
+                        {dados.lucro.toFixed(
+                          2
+                        )}
                       </p>
 
                       {Number(
@@ -2622,7 +3129,9 @@ async function excluirSaida(id: number) {
                           Frete: R${" "}
                           {Number(
                             sale.delivery_fee
-                          ).toFixed(2)}
+                          ).toFixed(
+                            2
+                          )}
                         </p>
                       )}
 
@@ -2633,7 +3142,8 @@ async function excluirSaida(id: number) {
               }
             )}
 
-          {vendasDoCaixa.length === 0 && (
+          {vendasDoCaixa.length ===
+            0 && (
             <p className="text-gray-500">
               Nenhuma venda registrada neste caixa.
             </p>
@@ -2642,6 +3152,142 @@ async function excluirSaida(id: number) {
         </div>
 
       </div>
+
+      {/* DETALHES DO CAIXA FECHADO */}
+
+      {selectedClosedCash && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+
+            <div className="p-6 border-b flex justify-between items-center">
+
+              <div>
+
+                <h2 className="text-xl font-bold">
+                  📚 Detalhes do caixa
+                </h2>
+
+                <p className="text-gray-500 mt-1">
+                  {selectedClosedCash.name ||
+                    `Caixa #${selectedClosedCash.id}`}
+                </p>
+
+              </div>
+
+              <button
+                onClick={() => {
+                  setSelectedClosedCash(null)
+                  setClosedCashDetails(null)
+                }}
+                className="text-gray-500 text-2xl"
+              >
+                ✕
+              </button>
+
+            </div>
+
+            <div className="p-6">
+
+              {!closedCashDetails ? (
+
+                <p className="text-gray-500">
+                  Carregando detalhes do caixa...
+                </p>
+
+              ) : (
+
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                    <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl">
+
+                      <p className="text-blue-700 font-semibold">
+                        💵 Recebido
+                      </p>
+
+                      <p className="text-2xl font-bold text-blue-800 mt-2">
+                        R${" "}
+                        {closedCashDetails.recebidoHistorico.toFixed(
+                          2
+                        )}
+                      </p>
+
+                    </div>
+
+                    <div className="bg-gray-50 border p-5 rounded-xl">
+
+                      <p className="text-gray-600 font-semibold">
+                        🚚 Fretes
+                      </p>
+
+                      <p className="text-2xl font-bold mt-2">
+                        R${" "}
+                        {closedCashDetails.fretesHistorico.toFixed(
+                          2
+                        )}
+                      </p>
+
+                    </div>
+
+                    <div className="bg-green-50 border border-green-200 p-5 rounded-xl">
+
+                      <p className="text-green-700 font-semibold">
+                        📈 Lucro
+                      </p>
+
+                      <p className="text-2xl font-bold text-green-700 mt-2">
+                        R${" "}
+                        {closedCashDetails.lucroHistorico.toFixed(
+                          2
+                        )}
+                      </p>
+
+                    </div>
+
+                    <div className="bg-purple-50 border border-purple-200 p-5 rounded-xl">
+
+                      <p className="text-purple-700 font-semibold">
+                        💰 Saldo disponível final
+                      </p>
+
+                      <p className="text-2xl font-bold text-purple-800 mt-2">
+                        R${" "}
+                        {closedCashDetails.saldoFinal.toFixed(
+                          2
+                        )}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  <div className="border-t mt-6 pt-4 text-sm text-gray-500 space-y-1">
+
+                    <p>
+                      Aberto em:{" "}
+                      {formatDate(
+                        selectedClosedCash.opened_at
+                      )}
+                    </p>
+
+                    <p>
+                      Fechado em:{" "}
+                      {formatDate(
+                        selectedClosedCash.closed_at
+                      )}
+                    </p>
+
+                  </div>
+                </>
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
       {/* MODAL ABRIR CAIXA */}
 
@@ -2657,6 +3303,24 @@ async function excluirSaida(id: number) {
             <p className="text-gray-500 mt-2">
               Informe quanto dinheiro físico existe no caixa neste momento.
             </p>
+
+            <label className="block text-sm font-medium text-gray-700 mt-5">
+              Nome do caixa
+            </label>
+
+            <input
+              className="border p-3 rounded-lg w-full mt-1"
+              type="text"
+              placeholder="Ex.: Caixa 17/08"
+              value={
+                cashName
+              }
+              onChange={(e) =>
+                setCashName(
+                  e.target.value
+                )
+              }
+            />
 
             <input
               className="border p-3 rounded-lg w-full mt-5"
@@ -2993,7 +3657,6 @@ async function excluirSaida(id: number) {
                     2
                   )}
                 </strong>
-
               </div>
 
               <div className="flex justify-between">
@@ -3008,7 +3671,6 @@ async function excluirSaida(id: number) {
                     2
                   )}
                 </strong>
-
               </div>
 
               <div className="flex justify-between">
@@ -3023,7 +3685,6 @@ async function excluirSaida(id: number) {
                     2
                   )}
                 </strong>
-
               </div>
 
               <div className="flex justify-between">
@@ -3038,7 +3699,6 @@ async function excluirSaida(id: number) {
                     2
                   )}
                 </strong>
-
               </div>
 
               <div className="border-t pt-3 flex justify-between font-bold text-blue-700">
@@ -3053,7 +3713,6 @@ async function excluirSaida(id: number) {
                     2
                   )}
                 </span>
-
               </div>
 
               <div className="flex justify-between font-bold text-green-700">
@@ -3068,7 +3727,6 @@ async function excluirSaida(id: number) {
                     2
                   )}
                 </span>
-
               </div>
 
             </div>
