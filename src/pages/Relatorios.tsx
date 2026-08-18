@@ -719,6 +719,9 @@ function Relatorios() {
   const saldoPeriodo =
     totalRecebido -
     totalSaidas
+    const lucroDisponivel =
+  lucro -
+  totalDespesas
 
   /*
   ============================================================
@@ -1193,6 +1196,38 @@ function Relatorios() {
           </h2>
 
         </div>
+        <div className="bg-orange-50 border border-orange-200 p-6 rounded-xl shadow">
+
+  <p className="text-orange-700 font-semibold">
+    🧾 Despesas
+  </p>
+
+  <p className="text-sm text-orange-600 mt-1">
+    Saídas classificadas como despesas.
+  </p>
+
+  <h2 className="text-2xl font-bold text-orange-700 mt-2">
+    R${" "}
+    {totalDespesas.toFixed(2)}
+  </h2>
+
+</div>
+<div className="bg-green-50 border border-green-200 p-6 rounded-xl shadow">
+
+  <p className="text-green-700 font-semibold">
+    📈 Lucro disponível
+  </p>
+
+  <p className="text-sm text-green-600 mt-1">
+    Lucro das vendas - despesas.
+  </p>
+
+  <h2 className="text-2xl font-bold text-green-700 mt-2">
+    R${" "}
+    {lucroDisponivel.toFixed(2)}
+  </h2>
+
+</div>
 
       </div>
 
