@@ -1514,8 +1514,9 @@ function Caixa() {
     } = await supabase
       .from("products")
       .select(
-        "id, name, stock"
-      )
+  "id, name, flavor, volume, stock"
+)
+  
       .order(
         "name",
         {
@@ -4248,8 +4249,18 @@ function Caixa() {
                           <div className="md:col-span-2">
 
                             <p className="font-bold">
-                              {product.name}
-                            </p>
+  {product.name}
+</p>
+
+<p className="text-gray-500 text-sm mt-1">
+  {product.flavor
+    ? `Sabor: ${product.flavor}`
+    : "Sabor: —"}
+  {" • "}
+  {product.volume
+    ? `Volume: ${product.volume}`
+    : "Volume: —"}
+</p>
 
                             <p className="text-gray-500 text-sm mt-1">
                               Estoque no sistema:{" "}
