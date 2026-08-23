@@ -34,6 +34,7 @@ function Vendas() {
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
   const [discount, setDiscount] = useState("")
+  const [addition, setAddition] = useState("")
 
   const [cashGiven, setCashGiven] = useState("")
   const [changeMethod, setChangeMethod] =
@@ -910,21 +911,28 @@ function Vendas() {
         ? deliveryFeeNight
         : deliveryFee
       : 0
-
-  const discountValue =
-    Number(
-      String(discount)
-        .replace(",", ".") ||
+const discountValue =
+  Number(
+    String(discount)
+      .replace(",", ".") ||
         0
-    )
+  )
 
-  const finalTotal =
-    Math.max(
-      0,
-      cartTotal +
-        deliveryTotal -
-        discountValue
-    )
+const additionValue =
+  Number(
+    String(addition)
+      .replace(",", ".") ||
+        0
+  )
+
+const finalTotal =
+  Math.max(
+    0,
+    cartTotal +
+      deliveryTotal +
+      additionValue -
+      discountValue
+  )
 
   const cartProfit =
     cart.reduce(
@@ -1471,10 +1479,10 @@ function Vendas() {
       const total =
         finalTotal
 
-      const profit =
-        cartProfit -
-        discountValue
-
+     const profit =
+  cartProfit +
+  additionValue -
+  discountValue
       const saleProducts =
         cart.map(
           (item) => ({
@@ -1526,7 +1534,11 @@ function Vendas() {
         total,
 
         profit,
+        discount:
+  discountValue,
 
+addition:
+  additionValue,
         customer:
           customer.trim() ||
           null,
@@ -1616,6 +1628,7 @@ function Vendas() {
       setCustomer("")
       setPayment("")
       setDiscount("")
+      setAddition("")
       setCashGiven("")
       setChangeMethod(
         "Dinheiro"
@@ -2444,30 +2457,63 @@ function Vendas() {
               )}
             </p>
 
-            <input
-              className="border p-2 rounded w-full mt-3"
-              type="number"
-              min="0"
-              placeholder="Desconto em R$"
-              value={
-                discount
-              }
-              onChange={(e) =>
-                setDiscount(
-                  e.target.value
-                )
-              }
-            />
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
 
-            {discountValue >
-              0 && (
-              <p className="text-red-600 mt-2">
-                Desconto: -R${" "}
-                {discountValue.toFixed(
-                  2
-                )}
-              </p>
-            )}
+  <div>
+    <label className="block text-sm text-gray-600 mb-1">
+      Desconto
+    </label>
+
+    <input
+      className="border p-2 rounded w-full"
+      type="number"
+      min="0"
+      step="0.01"
+      placeholder="Ex.: 5,00"
+      value={discount}
+      onChange={(e) =>
+        setDiscount(
+          e.target.value
+        )
+      }
+    />
+  </div>
+
+  <div>
+    <label className="block text-sm text-gray-600 mb-1">
+      Acréscimo
+    </label>
+
+    <input
+      className="border p-2 rounded w-full"
+      type="number"
+      min="0"
+      step="0.01"
+      placeholder="Ex.: 5,00"
+      value={addition}
+      onChange={(e) =>
+        setAddition(
+          e.target.value
+        )
+      }
+    />
+  </div>
+
+</div>
+
+{discountValue > 0 && (
+  <p className="text-red-600 mt-2">
+    Desconto: -R${" "}
+    {discountValue.toFixed(2)}
+  </p>
+)}
+
+{additionValue > 0 && (
+  <p className="text-green-600 mt-2">
+    Acréscimo: +R${" "}
+    {additionValue.toFixed(2)}
+  </p>
+)}
 
             <p className="font-bold text-xl text-blue-800 mt-2">
               Total: R${" "}
@@ -3272,7 +3318,42 @@ function Vendas() {
                     )}
                   </span>
                 </div>
+{Number(
+  selectedSale.addition || 0
+) > 0 && (
+  <div className="flex justify-between text-green-600 mt-2">
+    <span>
+      Acréscimo
+    </span>
 
+    <span>
+      + R${" "}
+      {Number(
+        selectedSale.addition || 0
+      ).toFixed(2)}
+    </span>
+  </div>
+)}
+{Number(
+  selectedSale.discount ||
+    0
+) > 0 && (
+  <div className="flex justify-between text-red-600 mt-2">
+    <span>
+      Desconto
+    </span>
+
+    <span>
+      - R${" "}
+      {Number(
+        selectedSale.discount ||
+          0
+      ).toFixed(
+        2
+      )}
+    </span>
+  </div>
+)}
                 {Number(
                   selectedSale.delivery_fee ||
                     0
