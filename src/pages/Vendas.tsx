@@ -13,18 +13,22 @@ function Vendas() {
   const [quantity, setQuantity] = useState("")
   const [productSearch, setProductSearch] = useState("")
 
-  const [selectedCopaoId, setSelectedCopaoId] =
-    useState("")
-  const [selectedEnergeticoId, setSelectedEnergeticoId] =
-    useState("")
-  const [selectedGeloId, setSelectedGeloId] =
-    useState("")
-  const [useGarrafinha, setUseGarrafinha] =
-    useState(false)
-  const [extraDoses, setExtraDoses] =
-    useState("0")
-  const [copaoQuantity, setCopaoQuantity] =
-    useState("1")
+ const [selectedCopaoId, setSelectedCopaoId] =
+  useState("")
+  const [selectedGeloComponentId, setSelectedGeloComponentId] =
+  useState("")
+
+const [extraDoses, setExtraDoses] =
+  useState("0")
+
+const [copaoQuantity, setCopaoQuantity] =
+  useState("1")
+
+const [copaoComponents, setCopaoComponents] =
+  useState<any[]>([])
+
+const [optionalCopaoComponents, setOptionalCopaoComponents] =
+  useState<Record<number, boolean>>({})
 
   const [cart, setCart] = useState<any[]>([])
 
@@ -140,6 +144,25 @@ function Vendas() {
       .order("name", {
         ascending: true,
       })
+      const {
+  data: copaoComponentsData,
+  error: copaoComponentsError,
+} = await supabase
+  .from("copao_components")
+  .select(`
+    *,
+    products (
+      id,
+      name,
+      category,
+      brand,
+      flavor,
+      volume,
+      purchase_price,
+      sale_price,
+      stock
+    )
+  `)
 
     if (productsError) {
       console.error(
@@ -161,6 +184,61 @@ function Vendas() {
         copoesError
       )
     }
+    if (copaoComponentsError) {
+  console.error(
+    "ERRO AO CARREGAR COMPONENTES DOS COPÕES:",
+    copaoComponentsError
+  )
+}
+if (copaoComponentsData) {
+  setCopaoComponents(
+    copaoComponentsData.map(
+      (item: any) => ({
+        ...item,
+
+        productId:
+          Number(
+            item.product_id
+          ),
+
+        quantity:
+          Number(
+            item.quantity || 0
+          ),
+
+        optional:
+          Boolean(
+            item.optional
+          ),
+
+        product:
+          item.products
+            ? {
+                ...item.products,
+
+                purchasePrice:
+                  Number(
+                    item.products.purchase_price ||
+                      0
+                  ),
+
+                salePrice:
+                  Number(
+                    item.products.sale_price ||
+                      0
+                  ),
+
+                stock:
+                  Number(
+                    item.products.stock ||
+                      0
+                  ),
+              }
+            : null,
+      })
+    )
+  )
+}
 
     if (productsData) {
       const formattedProducts =
@@ -233,27 +311,7 @@ function Vendas() {
         )
     )
 
-  const energeticos =
-    products.filter(
-      (product) =>
-        String(
-          product.category || ""
-        )
-          .trim()
-          .toLowerCase() ===
-        "energético"
-    )
-
-  const gelos =
-    products.filter(
-      (product) =>
-        String(
-          product.category || ""
-        )
-          .trim()
-          .toLowerCase() ===
-        "gelo"
-    )
+ 
 
   const selectedCopao =
     copoes.find(
@@ -264,38 +322,7 @@ function Vendas() {
         )
     )
 
-  const selectedDose =
-    selectedCopao
-      ? products.find(
-          (product) =>
-            product.id ===
-            Number(
-              selectedCopao.dose_product_id
-            )
-        )
-      : null
-
-  const selectedCopo =
-    selectedCopao
-      ? products.find(
-          (product) =>
-            product.id ===
-            Number(
-              selectedCopao.copo_product_id
-            )
-        )
-      : null
-
-  const selectedGarrafinha =
-    selectedCopao
-      ? products.find(
-          (product) =>
-            product.id ===
-            Number(
-              selectedCopao.garrafinha_product_id
-            )
-        )
-      : null
+ 
 
   function formatDateTime(
     dateValue: string
@@ -523,365 +550,588 @@ function Vendas() {
     setProductSearch("")
     setSaleType("Unidade")
   }
+function parseVolumeToMl(
+  volume: string | undefined
+) {
+  if (!volume) {
+    return 0
+  }
 
+  const normalized =
+    String(volume)
+      .trim()
+      .toLowerCase()
+      .replace(",", ".")
+
+  const numberMatch =
+    normalized.match(
+      /[\d.]+/
+    )
+
+  if (!numberMatch) {
+    return 0
+  }
+
+  const value =
+    Number(
+      numberMatch[0]
+    )
+
+  if (
+    normalized.includes("ml")
+  ) {
+    return value
+  }
+
+  if (
+    normalized.includes("cl")
+  ) {
+    return value * 10
+  }
+
+  if (
+    normalized.includes("l")
+  ) {
+    return value * 1000
+  }
+
+  return value
+}
   function addCopaoToCart() {
-    if (!selectedCopao) {
-      alert(
-        "Selecione um Copão."
-      )
-      return
-    }
+  if (!selectedCopao) {
+    alert(
+      "Selecione um Copão."
+    )
+    return
+  }
 
-    if (!selectedDose) {
-      alert(
-        "A dose cadastrada nesse Copão não foi encontrada."
-      )
-      return
-    }
+  const qtdCopoes =
+    Number(
+      copaoQuantity
+    )
 
-    if (!selectedCopo) {
-      alert(
-        "O copo cadastrado nesse Copão não foi encontrado."
-      )
-      return
-    }
+  const qtdExtras =
+    Number(
+      extraDoses || 0
+    )
 
-    if (
-      !selectedEnergeticoId
-    ) {
-      alert(
-        "Escolha o energético."
-      )
-      return
-    }
+  if (
+    qtdCopoes <= 0
+  ) {
+    alert(
+      "Quantidade de Copões inválida."
+    )
+    return
+  }
 
-    if (
-      !selectedGeloId
-    ) {
-      alert(
-        "Escolha o gelo."
-      )
-      return
-    }
+  if (
+    qtdExtras < 0
+  ) {
+    alert(
+      "Quantidade de doses extras inválida."
+    )
+    return
+  }
 
-    const qtdCopoes =
+  const components =
+    copaoComponents.filter(
+      (component: any) =>
+        Number(
+          component.copao_id
+        ) ===
+        Number(
+          selectedCopao.id
+        )
+    )
+
+  if (
+    components.length ===
+    0
+  ) {
+    alert(
+      "Esse Copão ainda não possui uma receita cadastrada."
+    )
+    return
+  }
+
+const geloComponents =
+  components.filter(
+    (component: any) =>
+      component.role === "gelo"
+  )
+
+if (
+  geloComponents.length > 0 &&
+  !selectedGeloComponentId
+) {
+  alert(
+    "Escolha um sabor de gelo."
+  )
+  return
+}
+
+const selectedGeloComponent =
+  geloComponents.find(
+    (component: any) =>
+      Number(component.id) ===
       Number(
-        copaoQuantity
+        selectedGeloComponentId
+      )
+  )
+
+if (
+  geloComponents.length > 0 &&
+  !selectedGeloComponent
+) {
+  alert(
+    "O sabor de gelo escolhido não foi encontrado."
+  )
+  return
+}
+
+const selectedComponents =
+  components.filter(
+    (component: any) => {
+
+      /*
+      ----------------------------------------------------------
+      GELO
+      ----------------------------------------------------------
+      */
+
+      if (
+        component.role === "gelo"
+      ) {
+        return (
+          Number(component.id) ===
+          Number(
+            selectedGeloComponentId
+          )
+        )
+      }
+
+      /*
+      ----------------------------------------------------------
+      OUTROS COMPONENTES
+      ----------------------------------------------------------
+      */
+
+      if (
+        !component.optional
+      ) {
+        return true
+      }
+
+      return (
+        optionalCopaoComponents[
+          component.id
+        ] === true
+      )
+    }
+  )
+    
+
+  const stockItems: any[] = []
+
+  let unitCost = 0
+
+  /*
+  ============================================================
+  COMPONENTES DA RECEITA
+  ============================================================
+  */
+
+  for (
+    const component of selectedComponents
+  ) {
+    const product =
+      products.find(
+        (item) =>
+          item.id ===
+          Number(
+            component.productId
+          )
       )
 
-    const qtdExtras =
+    if (!product) {
+      alert(
+        `Produto não encontrado para o componente ${component.id}.`
+      )
+      return
+    }
+
+    const quantityPerCopao =
       Number(
-        extraDoses || 0
+        component.quantity || 0
       )
 
     if (
-      qtdCopoes <= 0
+      quantityPerCopao <= 0
     ) {
       alert(
-        "Quantidade de Copões inválida."
+        `Quantidade inválida para ${product.name}.`
       )
       return
     }
 
+    let stockQuantityPerCopao =
+      quantityPerCopao
+
+    /*
+    ------------------------------------------------------------
+    CONSUMO FRACIONADO EM ML
+    ------------------------------------------------------------
+    */
+
     if (
-      qtdExtras < 0
+      component.unit_type ===
+      "Ml"
     ) {
-      alert(
-        "Quantidade de doses extras inválida."
-      )
-      return
+      const volumeMl =
+        parseVolumeToMl(
+          product.volume
+        )
+
+      if (
+        volumeMl <= 0
+      ) {
+        alert(
+          `O produto ${product.name} precisa ter um volume cadastrado para ser usado em ml.`
+        )
+        return
+      }
+
+      /*
+      Exemplo:
+      garrafa 1L
+      consumo 200ml
+      estoque baixa 0,20 garrafa
+      */
+
+      stockQuantityPerCopao =
+        quantityPerCopao /
+        volumeMl
     }
 
-    const energetico =
+    const totalStockQuantity =
+      stockQuantityPerCopao *
+      qtdCopoes
+
+    stockItems.push({
+      id:
+        product.id,
+
+      name:
+        product.name,
+
+      quantity:
+        totalStockQuantity,
+
+      quantityPerCopao:
+        quantityPerCopao,
+
+      unitType:
+        component.unit_type,
+
+      role:
+        component.role,
+
+      productVolume:
+        product.volume || null,
+    })
+
+    /*
+    ------------------------------------------------------------
+    CUSTO
+    ------------------------------------------------------------
+    */
+
+    unitCost +=
+      Number(
+        product.purchasePrice || 0
+      ) *
+      stockQuantityPerCopao
+  }
+
+  /*
+  ============================================================
+  DOSES EXTRAS
+  ============================================================
+  */
+
+  const doseComponent =
+    components.find(
+      (component: any) =>
+        component.role ===
+        "dose"
+    )
+
+  let extraDoseCost = 0
+
+  if (
+    qtdExtras > 0 &&
+    !doseComponent
+  ) {
+    alert(
+      "Esse Copão não possui uma dose cadastrada para receber doses extras."
+    )
+    return
+  }
+
+  if (
+    doseComponent &&
+    qtdExtras > 0
+  ) {
+    const doseProduct =
       products.find(
         (product) =>
           product.id ===
           Number(
-            selectedEnergeticoId
+            doseComponent.productId
           )
       )
 
-    const gelo =
-      products.find(
-        (product) =>
-          product.id ===
-          Number(
-            selectedGeloId
-          )
-      )
-
-    if (!energetico) {
+    if (!doseProduct) {
       alert(
-        "Energético não encontrado."
+        "Produto da dose não encontrado."
       )
       return
     }
 
-    if (!gelo) {
-      alert(
-        "Gelo não encontrado."
-      )
-      return
-    }
-
-    const doseQuantityPerCopao =
-      2 + qtdExtras
-
-    const doseTotal =
-      doseQuantityPerCopao *
-      qtdCopoes
-
-    const energeticoTotal =
-      qtdCopoes
-
-    const geloTotal =
-      qtdCopoes
-
-    const copoTotal =
-      qtdCopoes
-
-    const garrafinhaTotal =
-      selectedCopao.garrafinha_enabled &&
-      useGarrafinha
-        ? (
-            2 +
-            qtdExtras
-          ) *
-          qtdCopoes
-        : 0
-
-    const basePrice =
-      Number(
-        selectedCopao.sale_price ||
-          0
-      )
-
-    const extraPrice =
-      Number(
-        selectedCopao.dose_extra_price ||
-          0
-      )
-
-    const unitPrice =
-      basePrice +
+    const extraDoseQuantity =
       qtdExtras *
-        extraPrice
-
-    const total =
-      unitPrice *
       qtdCopoes
 
-    const stockItems = [
-      {
-        id: selectedDose.id,
-        name: selectedDose.name,
-        quantity: doseTotal,
-      },
+    stockItems.push({
+      id:
+        doseProduct.id,
 
-      {
-        id: energetico.id,
-        name: energetico.name,
-        quantity:
-          energeticoTotal,
-      },
+      name:
+        doseProduct.name,
 
-      {
-        id: gelo.id,
-        name: gelo.name,
-        quantity: geloTotal,
-      },
+      quantity:
+        extraDoseQuantity,
 
-      {
-        id: selectedCopo.id,
-        name: selectedCopo.name,
-        quantity: copoTotal,
-      },
-    ]
+      quantityPerCopao:
+        qtdExtras,
 
-    if (
-      garrafinhaTotal > 0 &&
-      selectedGarrafinha
-    ) {
-      stockItems.push({
-        id:
-          selectedGarrafinha.id,
-        name:
-          selectedGarrafinha.name,
-        quantity:
-          garrafinhaTotal,
-      })
+      unitType:
+        "Dose",
+
+      role:
+        "dose-extra",
+    })
+
+    extraDoseCost =
+      Number(
+        doseProduct.purchasePrice ||
+          0
+      ) *
+      qtdExtras
+  }
+
+  /*
+  ============================================================
+  VERIFICA ESTOQUE
+  ============================================================
+  */
+
+  const requiredStock: Record<
+    number,
+    number
+  > = {}
+
+  stockItems.forEach(
+    (item) => {
+      requiredStock[
+        item.id
+      ] =
+        (
+          requiredStock[
+            item.id
+          ] || 0
+        ) +
+        Number(
+          item.quantity || 0
+        )
+    }
+  )
+
+  for (
+    const [
+      id,
+      required,
+    ] of Object.entries(
+      requiredStock
+    )
+  ) {
+    const product =
+      products.find(
+        (item) =>
+          item.id ===
+          Number(id)
+      )
+
+    if (!product) {
+      alert(
+        `Produto de estoque não encontrado: ${id}`
+      )
+      return
     }
 
-    const requiredStock: Record<
-      number,
-      number
-    > = {}
+    if (
+      Number(
+        product.stock || 0
+      ) <
+      Number(
+        required
+      )
+    ) {
+      alert(
+        `Estoque insuficiente para ${product.name}.\n\nDisponível: ${product.stock}\nNecessário: ${required}`
+      )
+      return
+    }
+  }
 
-    stockItems.forEach(
-      (item) => {
-        requiredStock[
-          item.id
-        ] =
-          (
-            requiredStock[
-              item.id
-            ] || 0
-          ) +
-          item.quantity
+  /*
+  ============================================================
+  PREÇO
+  ============================================================
+  */
+
+  const basePrice =
+    Number(
+      selectedCopao.sale_price ||
+        0
+    )
+
+  const extraPrice =
+    Number(
+      selectedCopao.dose_extra_price ||
+        0
+    )
+
+  const unitPrice =
+    basePrice +
+    qtdExtras *
+      extraPrice
+
+  const total =
+    unitPrice *
+    qtdCopoes
+
+  const finalUnitCost =
+    unitCost +
+    extraDoseCost
+
+  const itemProfit =
+    unitPrice -
+    finalUnitCost
+
+  /*
+  ============================================================
+  NOMES DOS COMPONENTES
+  ============================================================
+  */
+
+  const componentNames =
+    selectedComponents.map(
+      (
+        component: any
+      ) => {
+        const product =
+          products.find(
+            (item) =>
+              item.id ===
+              Number(
+                component.productId
+              )
+          )
+
+        return product
+          ? product.name
+          : "Produto"
       }
     )
 
-    for (
-      const [
-        id,
-        required,
-      ] of Object.entries(
-        requiredStock
-      )
-    ) {
-      const product =
-        products.find(
-          (item) =>
-            item.id ===
-            Number(id)
-        )
+  const lacreUsado =
+    selectedComponents.some(
+      (component: any) =>
+        component.role ===
+        "lacre"
+    )
 
-      if (!product) {
-        alert(
-          `Produto de estoque não encontrado: ${id}`
-        )
-        return
-      }
+  /*
+  ============================================================
+  ADICIONA AO CARRINHO
+  ============================================================
+  */
 
-      if (
-        required >
-        Number(
-          product.stock || 0
-        )
-      ) {
-        alert(
-          `Estoque insuficiente para ${product.name}. Disponível: ${product.stock}. Necessário: ${required}.`
-        )
-        return
-      }
-    }
+  setCart([
+    ...cart,
 
-    const doseCost =
-      Number(
-        selectedDose.purchasePrice ||
-          0
-      ) *
-      doseQuantityPerCopao
+    {
+      type:
+        "Copao",
 
-    const energeticoCost =
-      Number(
-        energetico.purchasePrice ||
-          0
-      )
+      id:
+        `copao-${selectedCopao.id}-${Date.now()}`,
 
-    const geloCost =
-      Number(
-        gelo.purchasePrice ||
-          0
-      )
+      copaoId:
+        selectedCopao.id,
 
-    const copoCost =
-      Number(
-        selectedCopo.purchasePrice ||
-          0
-      )
+      name:
+        selectedCopao.name,
 
-    const garrafinhaCost =
-      selectedGarrafinha &&
-      garrafinhaTotal > 0
-        ? Number(
-            selectedGarrafinha.purchasePrice ||
-              0
-          ) *
-          (
-            2 +
-            qtdExtras
-          )
-        : 0
+      displayName:
+        selectedCopao.name,
 
-    const unitCost =
-      doseCost +
-      energeticoCost +
-      geloCost +
-      copoCost +
-      garrafinhaCost
+      quantity:
+        qtdCopoes,
 
-    const itemProfit =
-      unitPrice -
-      unitCost
+      saleType:
+        "Unidade",
 
-    setCart([
-      ...cart,
+      stockQuantity:
+        0,
 
-      {
-        type: "Copao",
+      salePrice:
+        unitPrice,
 
-        id: `copao-${selectedCopao.id}-${Date.now()}`,
+      purchasePrice:
+        finalUnitCost,
 
-        copaoId:
-          selectedCopao.id,
+      total,
 
-        name:
-          selectedCopao.name,
+      profit:
+        itemProfit *
+        qtdCopoes,
 
-        displayName:
-          selectedCopao.name,
+      doseExtra:
+        qtdExtras,
 
-        quantity:
-          qtdCopoes,
+      useLacre:
+        lacreUsado,
 
-        saleType:
-          "Unidade",
+      componentNames,
 
-        stockQuantity:
-          0,
+      components:
+        stockItems.map(
+          (item) => ({
+            ...item,
+          })
+        ),
 
-        salePrice:
-          unitPrice,
+      stockItems,
+    },
+  ])
 
-        purchasePrice:
-          unitCost,
-
-        total,
-
-        profit:
-          itemProfit *
-          qtdCopoes,
-
-        doseExtra:
-          qtdExtras,
-
-        useGarrafinha,
-
-        energeticoName:
-          energetico.name,
-
-        geloName:
-          gelo.name,
-
-        components:
-          stockItems.map(
-            (item) => ({
-              ...item,
-            })
-          ),
-
-        stockItems,
-      },
-    ])
-
-    setSelectedCopaoId("")
-    setSelectedEnergeticoId("")
-    setSelectedGeloId("")
-    setUseGarrafinha(false)
-    setExtraDoses("0")
-    setCopaoQuantity("1")
-  }
+  setSelectedCopaoId("")
+  setExtraDoses("0")
+  setCopaoQuantity("1")
+  setOptionalCopaoComponents({})
+}
 
   function removeCartItem(
     index: number
@@ -1641,13 +1891,12 @@ addition:
       setProductId("")
       setQuantity("")
 
-      setSelectedCopaoId("")
-      setSelectedEnergeticoId("")
-      setSelectedGeloId("")
-      setUseGarrafinha(false)
-      setExtraDoses("0")
-      setCopaoQuantity("1")
-      setSaleMode("Produto")
+     setSelectedCopaoId("")
+setSelectedGeloComponentId("")
+setExtraDoses("0")
+setCopaoQuantity("1")
+setOptionalCopaoComponents({})
+setSaleMode("Produto")
 
       if (
         payment ===
@@ -1998,298 +2247,383 @@ addition:
             "Copao" && (
             <div className="mt-4 space-y-3">
               <select
-                className="border p-2 rounded w-full"
-                value={
-                  selectedCopaoId
-                }
-                onChange={(e) => {
-                  const id =
-                    e.target.value
+      className="border p-2 rounded w-full"
+      value={selectedCopaoId}
+     onChange={(e) => {
+  setSelectedCopaoId(e.target.value)
+  setSelectedGeloComponentId("")
+  setExtraDoses("0")
+  setCopaoQuantity("1")
+  setOptionalCopaoComponents({})
+}}
+    >
+      <option value="">
+        Selecione o Copão
+      </option>
 
-                  setSelectedCopaoId(
-                    id
+      {copoes.map((copao) => (
+        <option
+          key={copao.id}
+          value={copao.id}
+        >
+          {copao.name} — R${" "}
+          {Number(
+            copao.sale_price || 0
+          ).toFixed(2)}
+        </option>
+      ))}
+    </select>
+
+    {selectedCopao && (
+      <div className="space-y-4">
+{(() => {
+  const geloOptions =
+    copaoComponents.filter(
+      (component: any) =>
+        Number(component.copao_id) ===
+          Number(selectedCopao.id) &&
+        component.role === "gelo"
+    )
+
+  if (geloOptions.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="border rounded-xl p-4 bg-blue-50">
+
+      <label className="block text-sm font-semibold mb-2">
+        🧊 Escolha o sabor do gelo
+      </label>
+
+      <select
+        className="border p-2 rounded-lg w-full bg-white"
+        value={selectedGeloComponentId}
+        onChange={(e) =>
+          setSelectedGeloComponentId(
+            e.target.value
+          )
+        }
+      >
+        <option value="">
+          Selecione o gelo
+        </option>
+
+        {geloOptions.map(
+          (component: any) => {
+
+            const product =
+              products.find(
+                (item) =>
+                  item.id ===
+                  Number(
+                    component.productId
                   )
+              )
 
-                  const copao =
-                    copoes.find(
-                      (item) =>
-                        item.id ===
-                        Number(
-                          id
-                        )
-                    )
+            if (!product) {
+              return null
+            }
 
-                  setUseGarrafinha(
-                    false
-                  )
-
-                  setExtraDoses(
-                    "0"
-                  )
-
-                  if (
-                    copao &&
-                    !copao.garrafinha_enabled
-                  ) {
-                    setUseGarrafinha(
-                      false
-                    )
-                  }
-                }}
+            return (
+              <option
+                key={component.id}
+                value={component.id}
               >
-                <option value="">
-                  Selecione o Copão
-                </option>
-
-                {copoes.map(
-                  (copao) => (
-                    <option
-                      key={
-                        copao.id
-                      }
-                      value={
-                        copao.id
-                      }
-                    >
-                      {copao.name} — R${" "}
-                      {Number(
-                        copao.sale_price
-                      ).toFixed(
-                        2
-                      )}
-                    </option>
-                  )
+                {product.name}
+                {product.flavor
+                  ? ` • ${product.flavor}`
+                  : ""}
+                {product.volume
+                  ? ` • ${product.volume}`
+                  : ""}
+                {" — estoque: "}
+                {Number(
+                  product.stock || 0
                 )}
-              </select>
+              </option>
+            )
+          }
+        )}
+      </select>
 
-              {selectedCopao && (
-                <>
-                  <select
-                    className="border p-2 rounded w-full"
-                    value={
-                      selectedEnergeticoId
-                    }
-                    onChange={(e) =>
-                      setSelectedEnergeticoId(
-                        e.target.value
-                      )
-                    }
-                  >
-                    <option value="">
-                      Escolha o energético
-                    </option>
+    </div>
+  )
+})()}
+        {copaoComponents
+          .filter(
+            (component: any) =>
+              Number(component.copao_id) ===
+              Number(selectedCopao.id)
+          )
+          
+          .map((component: any) => {
+            const product = products.find(
+              (item) =>
+                item.id ===
+                Number(component.productId)
+            )
 
-                    {energeticos.map(
-                      (
-                        product
-                      ) => (
-                        <option
-                          key={
-                            product.id
-                          }
-                          value={
-                            product.id
-                          }
-                        >
-                          {product.name}{" "}
-                          {product.volume
-                            ? `• ${product.volume}`
-                            : ""}{" "}
-                          — estoque:{" "}
-                          {
-                            product.stock
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
+            if (!product) {
+              return null
+            }
+            if (
+  component.role === "gelo"
+) {
+  return null
+}
 
-                  <select
-                    className="border p-2 rounded w-full"
-                    value={
-                      selectedGeloId
-                    }
-                    onChange={(e) =>
-                      setSelectedGeloId(
-                        e.target.value
-                      )
-                    }
-                  >
-                    <option value="">
-                      Escolha o gelo
-                    </option>
+            const isOptional =
+              component.optional === true
 
-                    {gelos.map(
-                      (
-                        product
-                      ) => (
-                        <option
-                          key={
-                            product.id
-                          }
-                          value={
-                            product.id
-                          }
-                        >
-                          {product.name}{" "}
-                          — estoque:{" "}
-                          {
-                            product.stock
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
+            const checked =
+              optionalCopaoComponents[
+                component.id
+              ] === true
 
-                  <label className="flex items-center gap-3 border rounded-lg p-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={
-                        useGarrafinha
-                      }
-                      disabled={
-                        !selectedCopao.garrafinha_enabled
-                      }
-                      onChange={(e) =>
-                        setUseGarrafinha(
-                          e.target.checked
-                        )
-                      }
-                    />
+            return (
+              <div
+                key={component.id}
+                className="border rounded-lg p-3"
+              >
 
-                    <div>
-                      <p className="font-semibold">
-                        🧴 Usar garrafinha
-                      </p>
-
-                      <p className="text-sm text-gray-500">
-                        {selectedCopao.garrafinha_enabled
-                          ? "2 unidades no padrão. Cada dose extra adiciona mais 1."
-                          : "Esse Copão não usa garrafinha."}
-                      </p>
-                    </div>
-                  </label>
+                <div className="flex justify-between items-start gap-3">
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Doses extras
-                    </label>
 
-                    <input
-                      type="number"
-                      min="0"
-                      value={
-                        extraDoses
-                      }
-                      onChange={(e) =>
-                        setExtraDoses(
-                          e.target.value
-                        )
-                      }
-                      className="border p-2 rounded w-full"
-                    />
-
-                    <p className="text-xs text-gray-500 mt-1">
-                      + R${" "}
-                      {Number(
-                        selectedCopao.dose_extra_price ||
-                          0
-                      ).toFixed(
-                        2
-                      )}{" "}
-                      por dose.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Quantidade de Copões
-                    </label>
-
-                    <input
-                      type="number"
-                      min="1"
-                      value={
-                        copaoQuantity
-                      }
-                      onChange={(e) =>
-                        setCopaoQuantity(
-                          e.target.value
-                        )
-                      }
-                      className="border p-2 rounded w-full"
-                    />
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-4">
                     <p className="font-semibold">
-                      Resumo
+                      {component.role === "dose"
+                        ? "🥃"
+                        : component.role === "energetico"
+                        ? "⚡"
+                        : component.role === "gelo"
+                        ? "🧊"
+                        : component.role === "copo"
+                        ? "🥤"
+                        : component.role === "lacre"
+                        ? "🔒"
+                        : "📦"}{" "}
+
+                      {product.name}
                     </p>
 
-                    <p className="text-sm mt-2">
-                      🥃 Dose:{" "}
-                      {2 +
-                        Number(
-                          extraDoses ||
-                            0
-                        )}{" "}
-                      por Copão
+                    <p className="text-sm text-gray-500 mt-1">
+                      {component.quantity}{" "}
+                      {component.unit_type === "Ml"
+                        ? "ml"
+                        : component.unit_type === "Dose"
+                        ? "dose(s)"
+                        : "unidade(s)"}
+
+                      {!isOptional &&
+                        " • obrigatório"}
                     </p>
 
-                    <p className="text-sm">
-                      ⚡ Energético: 1
-                    </p>
-
-                    <p className="text-sm">
-                      🧊 Gelo: 1
-                    </p>
-
-                    <p className="text-sm">
-                      🥤 Copo: 1
-                    </p>
-
-                    {useGarrafinha && (
-                      <p className="text-sm">
-                        🧴 Garrafinha:{" "}
-                        {2 +
-                          Number(
-                            extraDoses ||
-                              0
-                          )}
+                    {product.volume && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Embalagem:{" "}
+                        {product.volume}
                       </p>
                     )}
 
-                    <p className="font-bold mt-3">
-                      Preço por Copão: R${" "}
-                      {(
-                        Number(
-                          selectedCopao.sale_price ||
-                            0
-                        ) +
-                        Number(
-                          extraDoses ||
-                            0
-                        ) *
-                          Number(
-                            selectedCopao.dose_extra_price ||
-                              0
-                          )
-                      ).toFixed(2)}
-                    </p>
                   </div>
 
-                  <button
-                    onClick={
-                      addCopaoToCart
-                    }
-                    className="w-full bg-green-700 text-white px-5 py-3 rounded-lg font-bold"
-                  >
-                    Adicionar Copão ao carrinho
-                  </button>
-                </>
-              )}
-            </div>
+                  {isOptional ? (
+                    <label className="flex items-center gap-2 cursor-pointer">
+
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) =>
+                          setOptionalCopaoComponents(
+                            (previous) => ({
+                              ...previous,
+                              [component.id]:
+                                e.target.checked,
+                            })
+                          )
+                        }
+                      />
+
+                      <span className="text-sm font-medium">
+                        Usar
+                      </span>
+
+                    </label>
+                  ) : (
+                    <span className="text-sm text-green-700 font-semibold">
+                      Incluído
+                    </span>
+                  )}
+
+                </div>
+
+              </div>
+            )
+          })}
+
+        {copaoComponents.filter(
+          (component: any) =>
+            Number(component.copao_id) ===
+            Number(selectedCopao.id)
+        ).length === 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+
+            <p className="text-orange-700 font-semibold">
+              ⚠️ Esse Copão ainda não possui uma receita cadastrada.
+            </p>
+
+            <p className="text-sm text-orange-600 mt-1">
+              Cadastre os componentes na página de Copões antes de vender.
+            </p>
+
+          </div>
+        )}
+
+        {copaoComponents.some(
+          (component: any) =>
+            Number(component.copao_id) ===
+              Number(selectedCopao.id) &&
+            component.role === "dose"
+        ) && (
+          <div>
+
+            <label className="block text-sm font-medium mb-1">
+              Doses extras
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={extraDoses}
+              onChange={(e) =>
+                setExtraDoses(e.target.value)
+              }
+              className="border p-2 rounded w-full"
+            />
+
+            <p className="text-xs text-gray-500 mt-1">
+              + R${" "}
+              {Number(
+                selectedCopao.dose_extra_price || 0
+              ).toFixed(2)}{" "}
+              por dose extra.
+            </p>
+
+          </div>
+        )}
+
+        <div>
+
+          <label className="block text-sm font-medium mb-1">
+            Quantidade de Copões
+          </label>
+
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={copaoQuantity}
+            onChange={(e) =>
+              setCopaoQuantity(e.target.value)
+            }
+            className="border p-2 rounded w-full"
+          />
+
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-4">
+
+          <p className="font-semibold">
+            Resumo
+          </p>
+
+         {copaoComponents
+  .filter(
+    (component: any) =>
+      Number(component.copao_id) ===
+      Number(selectedCopao.id)
+  )
+  .map((component: any) => {
+
+    const product = products.find(
+      (item) =>
+        item.id ===
+        Number(component.productId)
+    )
+
+    if (!product) {
+      return null
+    }
+
+    if (
+      component.role === "gelo" &&
+      Number(component.id) !==
+        Number(selectedGeloComponentId)
+    ) {
+      return null
+    }
+
+    const selected =
+      !component.optional ||
+      optionalCopaoComponents[
+        component.id
+      ] === true
+
+    if (!selected) {
+      return null
+    }
+
+    return (
+      <p
+        key={`summary-${component.id}`}
+        className="text-sm mt-1"
+      >
+        {product.name}:{" "}
+        {component.quantity}{" "}
+        {component.unit_type === "Ml"
+          ? "ml"
+          : component.unit_type === "Dose"
+          ? "dose(s)"
+          : "unidade(s)"}
+      </p>
+    )
+  })}
+
+          {Number(extraDoses || 0) > 0 && (
+            <p className="text-sm mt-1">
+              🥃 Doses extras:{" "}
+              {extraDoses}
+            </p>
           )}
+
+          <p className="font-bold mt-3">
+            Preço por Copão: R${" "}
+            {(
+              Number(
+                selectedCopao.sale_price || 0
+              ) +
+              Number(extraDoses || 0) *
+                Number(
+                  selectedCopao.dose_extra_price || 0
+                )
+            ).toFixed(2)}
+          </p>
+
+        </div>
+
+        <button
+          onClick={addCopaoToCart}
+          className="w-full bg-green-700 text-white px-5 py-3 rounded-lg font-bold"
+        >
+          Adicionar Copão ao carrinho
+        </button>
+
+      </div>
+    )}
+     </div>
+)}
         </div>
 
         {/* ================================================== */}
@@ -2338,12 +2672,19 @@ addition:
                         {item.type ===
                           "Copao" && (
                           <p className="text-sm text-gray-500">
-                            {item.energeticoName}{" "}
-                            •{" "}
-                            {item.geloName}
-                            {item.useGarrafinha
-                              ? " • com garrafinha"
-                              : ""}
+                          {item.componentNames &&
+  item.componentNames.length >
+    0 && (
+    <p className="text-sm text-gray-500">
+      {item.componentNames.join(
+        " • "
+      )}
+
+      {item.useLacre
+        ? " • com lacre"
+        : ""}
+    </p>
+  )}
                             {Number(
                               item.doseExtra ||
                                 0
@@ -3051,26 +3392,25 @@ addition:
                                   Copão(s)
                                 </p>
 
-                                <p className="text-gray-500 mt-1">
-                                  Energético:{" "}
-                                  {
-                                    item.energeticoName
-                                  }
-                                </p>
+                               {Array.isArray(
+  item.componentNames
+) &&
+  item.componentNames.length >
+    0 && (
+    <p className="text-gray-500 mt-1">
+      Componentes:{" "}
+      {item.componentNames.join(
+        " • "
+      )}
+    </p>
+  )}
 
-                                <p className="text-gray-500">
-                                  Gelo:{" "}
-                                  {
-                                    item.geloName
-                                  }
-                                </p>
-
-                                <p className="text-gray-500">
-                                  Garrafinha:{" "}
-                                  {item.useGarrafinha
-                                    ? "Sim"
-                                    : "Não"}
-                                </p>
+<p className="text-gray-500">
+  Lacre:{" "}
+  {item.useLacre
+    ? "Sim"
+    : "Não"}
+</p>
 
                                 <p className="text-gray-500">
                                   Doses extras:{" "}

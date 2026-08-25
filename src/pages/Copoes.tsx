@@ -5,12 +5,9 @@ interface Copao {
   id: number
   name: string
   sale_price: number
-  dose_product_id: number
+  dose_product_id: number | null
   dose_extra_price: number
-  garrafinha_enabled: boolean
-  garrafinha_quantity: number
   copo_product_id: number | null
-  garrafinha_product_id: number | null
   active: boolean
 }
 
@@ -26,32 +23,50 @@ interface Product {
   stock?: number
 }
 
+interface CopaoComponent {
+  id?: number
+  copao_id?: number
+  product_id: number
+  quantity: number
+  unit_type: string
+  role: string
+  optional: boolean
+  product?: Product
+}
+
 function Copoes() {
   const [copoes, setCopoes] = useState<Copao[]>([])
-
   const [products, setProducts] = useState<Product[]>([])
-  const [doseProducts, setDoseProducts] = useState<Product[]>([])
-  const [copoProducts, setCopoProducts] = useState<Product[]>([])
-  const [garrafinhaProducts, setGarrafinhaProducts] =
-    useState<Product[]>([])
+  const [components, setComponents] = useState<
+    Record<number, CopaoComponent[]>
+  >({})
 
   const [name, setName] = useState("")
   const [salePrice, setSalePrice] = useState("")
-  const [doseProductId, setDoseProductId] = useState("")
   const [doseExtraPrice, setDoseExtraPrice] = useState("")
-
-  const [copoProductId, setCopoProductId] = useState("")
-  const [garrafinhaProductId, setGarrafinhaProductId] =
-    useState("")
-
-  const [garrafinhaEnabled, setGarrafinhaEnabled] =
-    useState(false)
 
   const [editingId, setEditingId] =
     useState<number | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  /*
+  ============================================================
+  COMPONENTES DA NOVA RECEITA
+  ============================================================
+  */
+
+  const [recipeComponents, setRecipeComponents] =
+    useState<CopaoComponent[]>([])
+    const [componentSearches, setComponentSearches] =
+  useState<Record<number, string>>({})
+
+  /*
+  ============================================================
+  CARREGA DADOS
+  ============================================================
+  */
 
   useEffect(() => {
     loadData()
@@ -95,124 +110,405 @@ function Copoes() {
       )
     }
 
+    const {
+      data: componentsData,
+      error: componentsError,
+    } = await supabase
+      .from("copao_components")
+      .select(`
+        *,
+        products (
+          id,
+          name,
+          category,
+          brand,
+          flavor,
+          volume,
+          purchase_price,
+          sale_price,
+          stock
+        )
+      `)
+
+    if (componentsError) {
+      console.error(
+        "ERRO AO CARREGAR COMPONENTES DOS COPÕES:",
+        componentsError
+      )
+    }
+
     if (copoesData) {
       setCopoes(copoesData)
     }
 
     if (productsData) {
       const formattedProducts =
-        productsData.map((product: any) => ({
-          ...product,
-          purchase_price: Number(
-            product.purchase_price || 0
-          ),
-          sale_price: Number(
-            product.sale_price || 0
-          ),
-          stock: Number(
-            product.stock || 0
-          ),
-        }))
+        productsData.map(
+          (product: any) => ({
+            ...product,
 
-      setProducts(formattedProducts)
+            purchase_price:
+              Number(
+                product.purchase_price || 0
+              ),
 
-      const normalize = (value: string) =>
-        String(value || "")
-          .trim()
-          .toLowerCase()
+            sale_price:
+              Number(
+                product.sale_price || 0
+              ),
 
-      setDoseProducts(
-        formattedProducts.filter(
-          (product: Product) =>
-            normalize(
-              product.category
-            ) === "dose"
+            stock:
+              Number(
+                product.stock || 0
+              ),
+          })
         )
+
+      setProducts(
+        formattedProducts
       )
+    }
 
-      setCopoProducts(
-        formattedProducts.filter(
-          (product: Product) =>
-            normalize(
-              product.category
-            ) === "copo"
-        )
-      )
+    if (componentsData) {
+      const grouped: Record<
+        number,
+        CopaoComponent[]
+      > = {}
 
-      setGarrafinhaProducts(
-        formattedProducts.filter(
-          (product: Product) => {
-            const category =
-              normalize(
-                product.category
-              )
-
-            const name =
-              normalize(
-                product.name
-              )
-
-            return (
-              category ===
-                "garrafinha" ||
-              name.includes(
-                "garrafinha"
-              )
+      componentsData.forEach(
+        (item: any) => {
+          const copaoId =
+            Number(
+              item.copao_id
             )
+
+          if (!grouped[copaoId]) {
+            grouped[copaoId] = []
           }
-        )
+
+          grouped[copaoId].push({
+            id: item.id,
+            copao_id:
+              item.copao_id,
+            product_id:
+              Number(
+                item.product_id
+              ),
+            quantity:
+              Number(
+                item.quantity || 0
+              ),
+            unit_type:
+              item.unit_type ||
+              "Unidade",
+            role:
+              item.role ||
+              "",
+            optional:
+              Boolean(
+                item.optional
+              ),
+            product:
+              item.products
+                ? {
+                    ...item.products,
+                    purchase_price:
+                      Number(
+                        item.products
+                          .purchase_price ||
+                          0
+                      ),
+                    sale_price:
+                      Number(
+                        item.products
+                          .sale_price ||
+                          0
+                      ),
+                    stock:
+                      Number(
+                        item.products
+                          .stock ||
+                          0
+                      ),
+                  }
+                : undefined,
+          })
+        }
+      )
+
+      setComponents(
+        grouped
       )
     }
 
     setLoading(false)
   }
 
+  /*
+  ============================================================
+  LIMPA FORMULÁRIO
+  ============================================================
+  */
+
   function clearForm() {
     setName("")
     setSalePrice("")
-    setDoseProductId("")
     setDoseExtraPrice("")
-    setCopoProductId("")
-    setGarrafinhaProductId("")
-    setGarrafinhaEnabled(false)
     setEditingId(null)
+    setRecipeComponents([])
+    setComponentSearches({})
   }
 
-  function editCopao(copao: Copao) {
-    setEditingId(copao.id)
+  /*
+  ============================================================
+  PRODUTO
+  ============================================================
+  */
 
-    setName(copao.name)
+  function getProduct(
+    id: number
+  ) {
+    return products.find(
+      (product) =>
+        product.id === id
+    )
+  }
 
-    setSalePrice(
-      String(copao.sale_price)
+  function getProductName(
+    id: number
+  ) {
+    const product =
+      getProduct(id)
+
+    if (!product) {
+      return "Produto não encontrado"
+    }
+
+    return (
+      product.name +
+      (product.brand
+        ? ` • ${product.brand}`
+        : "") +
+      (product.flavor
+        ? ` • ${product.flavor}`
+        : "") +
+      (product.volume
+        ? ` • ${product.volume}`
+        : "")
+    )
+  }
+
+  /*
+  ============================================================
+  COMPONENTES
+  ============================================================
+  */
+
+  function addComponent() {
+    setRecipeComponents([
+      ...recipeComponents,
+
+      {
+        product_id: 0,
+        quantity: 1,
+        unit_type: "Unidade",
+        role: "",
+        optional: false,
+      },
+    ])
+  }
+
+  function removeComponent(
+    index: number
+  ) {
+    setRecipeComponents(
+      recipeComponents.filter(
+        (_, i) =>
+          i !== index
+      )
+    )
+  }
+
+  function updateComponent(
+  index: number,
+  field: keyof CopaoComponent,
+  value: any
+) {
+  setRecipeComponents(
+    recipeComponents.map(
+      (component, i) => {
+        if (i !== index) {
+          return component
+        }
+
+        const updated = {
+          ...component,
+          [field]: value,
+        }
+
+        /*
+        --------------------------------------------------------
+        SE A FUNÇÃO FOR GELO
+        O SISTEMA TRATA COMO OPÇÃO DE ESCOLHA NA VENDA.
+        --------------------------------------------------------
+        */
+
+        if (
+          field === "role" &&
+          value === "gelo"
+        ) {
+          updated.optional = true
+        }
+
+        /*
+        --------------------------------------------------------
+        SE DEIXAR DE SER GELO
+        VOLTA A SER OBRIGATÓRIO.
+        --------------------------------------------------------
+        */
+
+        if (
+          field === "role" &&
+          value !== "gelo"
+        ) {
+          updated.optional = false
+        }
+
+        return updated
+      }
+    )
+  )
+}
+  /*
+  ============================================================
+  EDITAR COPÃO
+  ============================================================
+  */
+
+  async function editCopao(
+    copao: Copao
+  ) {
+    setEditingId(
+      copao.id
     )
 
-    setDoseProductId(
-      String(copao.dose_product_id)
+    setName(
+      copao.name
+    )
+
+    setSalePrice(
+      String(
+        copao.sale_price
+      )
     )
 
     setDoseExtraPrice(
-      String(copao.dose_extra_price)
+      String(
+        copao.dose_extra_price ||
+          0
+      )
     )
 
-    setCopoProductId(
-      copao.copo_product_id
-        ? String(
-            copao.copo_product_id
+    const { data, error } =
+      await supabase
+        .from(
+          "copao_components"
+        )
+        .select(`
+          *,
+          products (
+            id,
+            name,
+            category,
+            brand,
+            flavor,
+            volume,
+            purchase_price,
+            sale_price,
+            stock
           )
-        : ""
-    )
+        `)
+        .eq(
+          "copao_id",
+          copao.id
+        )
+        .order("id", {
+          ascending: true,
+        })
 
-    setGarrafinhaEnabled(
-      copao.garrafinha_enabled
-    )
+    if (error) {
+      console.error(
+        "ERRO AO CARREGAR RECEITA:",
+        error
+      )
 
-    setGarrafinhaProductId(
-      copao.garrafinha_product_id
-        ? String(
-            copao.garrafinha_product_id
-          )
-        : ""
+      alert(
+        `Não foi possível carregar a receita.\n\n${error.message}`
+      )
+
+      return
+    }
+
+    setRecipeComponents(
+      (data || []).map(
+        (item: any) => ({
+          id: item.id,
+
+          copao_id:
+            item.copao_id,
+
+          product_id:
+            Number(
+              item.product_id
+            ),
+
+          quantity:
+            Number(
+              item.quantity || 0
+            ),
+
+          unit_type:
+            item.unit_type ||
+            "Unidade",
+
+          role:
+            item.role ||
+            "",
+
+          optional:
+            Boolean(
+              item.optional
+            ),
+
+          product:
+            item.products
+              ? {
+                  ...item.products,
+
+                  purchase_price:
+                    Number(
+                      item.products
+                        .purchase_price ||
+                        0
+                    ),
+
+                  sale_price:
+                    Number(
+                      item.products
+                        .sale_price ||
+                        0
+                    ),
+
+                  stock:
+                    Number(
+                      item.products
+                        .stock ||
+                        0
+                    ),
+                }
+              : undefined,
+        })
+      )
     )
 
     window.scrollTo({
@@ -221,55 +517,65 @@ function Copoes() {
     })
   }
 
-  function getProduct(
-    id: string
-  ) {
-    return products.find(
-      (product) =>
-        product.id === Number(id)
-    )
-  }
+  /*
+  ============================================================
+  CUSTO DA RECEITA
+  ============================================================
+  */
 
-  function getPurchasePrice(
-    id: string
-  ) {
-    return Number(
-      getProduct(id)
-        ?.purchase_price || 0
-    )
-  }
+  function calculateRecipeCost() {
+    return recipeComponents.reduce(
+      (
+        total,
+        component
+      ) => {
+        const product =
+          getProduct(
+            Number(
+              component.product_id
+            )
+          )
 
-  function calculateBaseCost() {
-    const doseCost =
-      getPurchasePrice(
-        doseProductId
-      ) * 2
+        if (!product) {
+          return total
+        }
 
-    const copoCost =
-      getPurchasePrice(
-        copoProductId
-      )
+        /*
+        ML NÃO É CONVERTIDO AQUI.
+        Isso será tratado na venda.
+        */
 
-    const garrafinhaCost =
-      garrafinhaEnabled
-        ? getPurchasePrice(
-            garrafinhaProductId
-          ) * 2
-        : 0
+        if (
+          component.unit_type ===
+          "Ml"
+        ) {
+          return total
+        }
 
-    return (
-      doseCost +
-      copoCost +
-      garrafinhaCost
+        return (
+          total +
+          Number(
+            product.purchase_price ||
+              0
+          ) *
+            Number(
+              component.quantity ||
+                0
+            )
+        )
+      },
+      0
     )
   }
 
   const baseCost =
-    calculateBaseCost()
+    calculateRecipeCost()
 
   const baseSalePrice =
     Number(
-      String(salePrice || "0").replace(
+      String(
+        salePrice || "0"
+      ).replace(
         ",",
         "."
       )
@@ -279,21 +585,11 @@ function Copoes() {
     baseSalePrice -
     baseCost
 
-  const doseExtraPriceValue =
-    Number(
-      String(
-        doseExtraPrice || "0"
-      ).replace(",", ".")
-    )
-
-  const doseExtraCost =
-    getPurchasePrice(
-      doseProductId
-    )
-
-  const doseExtraProfit =
-    doseExtraPriceValue -
-    doseExtraCost
+  /*
+  ============================================================
+  SALVAR COPÃO
+  ============================================================
+  */
 
   async function saveCopao() {
     if (!name.trim()) {
@@ -303,19 +599,25 @@ function Copoes() {
       return
     }
 
-    const price = Number(
-      String(salePrice).replace(
-        ",",
-        "."
+    const price =
+      Number(
+        String(
+          salePrice
+        ).replace(
+          ",",
+          "."
+        )
       )
-    )
 
     const extraPrice =
       Number(
         String(
           doseExtraPrice ||
             "0"
-        ).replace(",", ".")
+        ).replace(
+          ",",
+          "."
+        )
       )
 
     if (
@@ -324,30 +626,6 @@ function Copoes() {
     ) {
       alert(
         "Informe um preço base válido."
-      )
-      return
-    }
-
-    if (!doseProductId) {
-      alert(
-        "Selecione a dose."
-      )
-      return
-    }
-
-    if (!copoProductId) {
-      alert(
-        "Selecione o copo."
-      )
-      return
-    }
-
-    if (
-      garrafinhaEnabled &&
-      !garrafinhaProductId
-    ) {
-      alert(
-        "Selecione a garrafinha."
       )
       return
     }
@@ -362,52 +640,157 @@ function Copoes() {
       return
     }
 
+    /*
+    ------------------------------------------------------------
+    VALIDA COMPONENTES
+    ------------------------------------------------------------
+    */
+
+    if (
+      recipeComponents.length ===
+      0
+    ) {
+      alert(
+        "Adicione pelo menos um componente à receita."
+      )
+      return
+    }
+
+    for (
+      const component of recipeComponents
+    ) {
+      if (
+        !component.product_id ||
+        Number(
+          component.product_id
+        ) <= 0
+      ) {
+        alert(
+          "Todos os componentes precisam ter um produto selecionado."
+        )
+        return
+      }
+
+      if (
+        Number(
+          component.quantity
+        ) <= 0
+      ) {
+        alert(
+          "Todos os componentes precisam ter uma quantidade maior que zero."
+        )
+        return
+      }
+
+      if (
+        !component.unit_type
+      ) {
+        alert(
+          "Informe a unidade de cada componente."
+        )
+        return
+      }
+    }
+/*
+------------------------------------------------------------
+NORMALIZA RECEITA DE GELO
+------------------------------------------------------------
+*/
+
+const normalizedRecipeComponents =
+  recipeComponents.map(
+    (component) => ({
+      ...component,
+
+      optional:
+        component.role === "gelo"
+          ? true
+          : Boolean(
+              component.optional
+            ),
+    })
+  )
     setSaving(true)
 
+    /*
+    ------------------------------------------------------------
+    ENCONTRA COMPONENTES IMPORTANTES
+    ------------------------------------------------------------
+    */
+
+    const doseComponent =
+      recipeComponents.find(
+        (component) =>
+          component.role ===
+          "dose"
+      )
+
+    const copoComponent =
+      recipeComponents.find(
+        (component) =>
+          component.role ===
+          "copo"
+      )
+
     const copaoData = {
-      name: name.trim(),
+      name:
+        name.trim(),
 
       sale_price:
         price,
 
       dose_product_id:
-        Number(
-          doseProductId
-        ),
+        doseComponent
+          ? Number(
+              doseComponent.product_id
+            )
+          : null,
 
       dose_extra_price:
         extraPrice,
 
       copo_product_id:
-        Number(
-          copoProductId
-        ),
-
-      garrafinha_enabled:
-        garrafinhaEnabled,
-
-      garrafinha_quantity:
-        2,
-
-      garrafinha_product_id:
-        garrafinhaEnabled
+        copoComponent
           ? Number(
-              garrafinhaProductId
+              copoComponent.product_id
             )
           : null,
 
-      active: true,
+      /*
+      CAMPOS ANTIGOS MANTIDOS
+      PARA NÃO QUEBRAR OS DADOS EXISTENTES.
+      */
+
+      garrafinha_enabled:
+        false,
+
+      garrafinha_quantity:
+        0,
+
+      garrafinha_product_id:
+        null,
+
+      active:
+        true,
     }
 
     let copaoId =
       editingId
+
+    /*
+    ------------------------------------------------------------
+    CRIA / ATUALIZA
+    ------------------------------------------------------------
+    */
 
     if (editingId) {
       const {
         error,
       } = await supabase
         .from("copoes")
-        .update(copaoData)
+        .update(
+          copaoData
+        )
         .eq(
           "id",
           editingId
@@ -432,7 +815,9 @@ function Copoes() {
         error,
       } = await supabase
         .from("copoes")
-        .insert(copaoData)
+        .insert(
+          copaoData
+        )
         .select()
 
       if (error) {
@@ -451,7 +836,8 @@ function Copoes() {
 
       if (
         !data ||
-        data.length === 0
+        data.length ===
+          0
       ) {
         alert(
           "O copão não foi criado."
@@ -471,13 +857,15 @@ function Copoes() {
     }
 
     /*
-    COMPONENTES FIXOS DO COPÃO
-
-    O produto específico de energético
-    e gelo será escolhido apenas na venda.
+    ------------------------------------------------------------
+    REMOVE COMPONENTES ANTIGOS DA RECEITA
+    ------------------------------------------------------------
     */
 
-    await supabase
+    const {
+      error:
+        deleteComponentsError,
+    } = await supabase
       .from(
         "copao_components"
       )
@@ -487,37 +875,59 @@ function Copoes() {
         copaoId
       )
 
-    const components = [
-      {
-        copao_id:
-          copaoId,
+    if (
+      deleteComponentsError
+    ) {
+      console.error(
+        "ERRO AO LIMPAR COMPONENTES:",
+        deleteComponentsError
+      )
 
-        component_type:
-          "energetico",
+      alert(
+        `Copão salvo, mas não foi possível atualizar os componentes.\n\n${deleteComponentsError.message}`
+      )
 
-        quantity: 1,
-      },
+      setSaving(false)
+      return
+    }
 
-      {
-        copao_id:
-          copaoId,
+    /*
+    ------------------------------------------------------------
+    SALVA NOVA RECEITA
+    ------------------------------------------------------------
+    */
 
-        component_type:
-          "gelo",
+   const componentRows =
+  normalizedRecipeComponents.map(
+    (
+      component
+    ) => ({
+      copao_id:
+        copaoId,
 
-        quantity: 1,
-      },
+      product_id:
+        Number(
+          component.product_id
+        ),
 
-      {
-        copao_id:
-          copaoId,
+      quantity:
+        Number(
+          component.quantity
+        ),
 
-        component_type:
-          "copo",
+      unit_type:
+        component.unit_type,
 
-        quantity: 1,
-      },
-    ]
+      role:
+        component.role ||
+        null,
+
+      optional:
+        Boolean(
+          component.optional
+        ),
+    })
+  )
 
     const {
       error:
@@ -527,17 +937,19 @@ function Copoes() {
         "copao_components"
       )
       .insert(
-        components
+        componentRows
       )
 
-    if (componentsError) {
+    if (
+      componentsError
+    ) {
       console.error(
         "ERRO AO SALVAR COMPONENTES:",
         componentsError
       )
 
       alert(
-        `Copão salvo, mas houve erro nos componentes:\n\n${componentsError.message}`
+        `Copão salvo, mas houve erro ao salvar a receita:\n\n${componentsError.message}`
       )
 
       setSaving(false)
@@ -557,6 +969,12 @@ function Copoes() {
     setSaving(false)
   }
 
+  /*
+  ============================================================
+  EXCLUIR COPÃO
+  ============================================================
+  */
+
   async function deleteCopao(
     id: number
   ) {
@@ -574,7 +992,8 @@ function Copoes() {
     } = await supabase
       .from("copoes")
       .update({
-        active: false,
+        active:
+          false,
       })
       .eq(
         "id",
@@ -602,39 +1021,80 @@ function Copoes() {
     )
   }
 
-  function getProductName(
-    id: number | null
-  ) {
-    if (!id) {
-      return "Não definido"
-    }
+  /*
+  ============================================================
+  FORMATA COMPONENTE
+  ============================================================
+  */
 
+  function formatComponent(
+    component: CopaoComponent
+  ) {
     const product =
-      products.find(
-        (item) =>
-          item.id === id
+      getProduct(
+        Number(
+          component.product_id
+        )
       )
 
-    if (!product) {
-      return "Produto não encontrado"
+    const productName =
+      product
+        ? getProductName(
+            product.id
+          )
+        : "Produto não encontrado"
+
+    let quantityText =
+      `${component.quantity}`
+
+    if (
+      component.unit_type ===
+      "Ml"
+    ) {
+      quantityText +=
+        " ml"
+    } else if (
+      component.unit_type ===
+      "Dose"
+    ) {
+      quantityText +=
+        component.quantity ===
+        1
+          ? " dose"
+          : " doses"
+    } else if (
+      component.unit_type ===
+      "Unidade"
+    ) {
+      quantityText +=
+        component.quantity ===
+        1
+          ? " unidade"
+          : " unidades"
     }
 
+    return `${productName} → ${quantityText}`
+  }
+
+  /*
+  ============================================================
+  COMPONENTES PARA LISTAGEM
+  ============================================================
+  */
+
+  function getCopaoComponents(
+    copaoId: number
+  ) {
     return (
-      product.name +
-      (product.brand
-        ? ` • ${product.brand}`
-        : "") +
-      (product.flavor
-        ? ` • ${product.flavor}`
-        : "") +
-      (product.volume
-        ? ` • ${product.volume}`
-        : "")
+      components[
+        copaoId
+      ] || []
     )
   }
 
   return (
     <div>
+
       <h1 className="text-3xl font-bold">
         Copões
       </h1>
@@ -649,6 +1109,7 @@ function Copoes() {
       {/* ================================================== */}
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
         <h2 className="text-xl font-bold">
           {editingId
             ? "Editar copão"
@@ -656,6 +1117,7 @@ function Copoes() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+
           <div>
             <label className="block text-sm font-medium mb-1">
               Nome do copão
@@ -669,7 +1131,7 @@ function Copoes() {
                   e.target.value
                 )
               }
-              placeholder="Ex.: Copão Red Label"
+              placeholder="Ex.: Copão Gin"
               className="border rounded-lg px-4 py-2 w-full"
             />
           </div>
@@ -683,9 +1145,7 @@ function Copoes() {
               type="number"
               min="0"
               step="0.01"
-              value={
-                salePrice
-              }
+              value={salePrice}
               onChange={(e) =>
                 setSalePrice(
                   e.target.value
@@ -694,89 +1154,6 @@ function Copoes() {
               placeholder="Ex.: 35,00"
               className="border rounded-lg px-4 py-2 w-full"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Dose usada
-            </label>
-
-            <select
-              value={
-                doseProductId
-              }
-              onChange={(e) =>
-                setDoseProductId(
-                  e.target.value
-                )
-              }
-              className="border rounded-lg px-4 py-2 w-full bg-white"
-            >
-              <option value="">
-                Selecione a dose
-              </option>
-
-              {doseProducts.map(
-                (product) => (
-                  <option
-                    key={
-                      product.id
-                    }
-                    value={
-                      product.id
-                    }
-                  >
-                    {product.name}
-                    {product.brand
-                      ? ` • ${product.brand}`
-                      : ""}
-                    {product.volume
-                      ? ` • ${product.volume}`
-                      : ""}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Copo usado
-            </label>
-
-            <select
-              value={
-                copoProductId
-              }
-              onChange={(e) =>
-                setCopoProductId(
-                  e.target.value
-                )
-              }
-              className="border rounded-lg px-4 py-2 w-full bg-white"
-            >
-              <option value="">
-                Selecione o copo
-              </option>
-
-              {copoProducts.map(
-                (product) => (
-                  <option
-                    key={
-                      product.id
-                    }
-                    value={
-                      product.id
-                    }
-                  >
-                    {product.name}
-                    {product.volume
-                      ? ` • ${product.volume}`
-                      : ""}
-                  </option>
-                )
-              )}
-            </select>
           </div>
 
           <div>
@@ -801,305 +1178,507 @@ function Copoes() {
             />
 
             <p className="text-xs text-gray-500 mt-1">
-              O custo dessa dose é puxado automaticamente do produto Dose.
+              Usado somente para componentes marcados como "Dose".
             </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Garrafinha
-            </label>
-
-            <select
-              value={
-                garrafinhaProductId
-              }
-              onChange={(e) =>
-                setGarrafinhaProductId(
-                  e.target.value
-                )
-              }
-              disabled={
-                !garrafinhaEnabled
-              }
-              className="border rounded-lg px-4 py-2 w-full bg-white disabled:bg-gray-100"
-            >
-              <option value="">
-                Selecione a garrafinha
-              </option>
-
-              {garrafinhaProducts.map(
-                (product) => (
-                  <option
-                    key={
-                      product.id
-                    }
-                    value={
-                      product.id
-                    }
-                  >
-                    {product.name}
-                    {product.volume
-                      ? ` • ${product.volume}`
-                      : ""}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
         </div>
 
-        {doseProducts.length ===
-          0 && (
-          <p className="text-sm text-orange-600 mt-3">
-            Cadastre pelo menos um produto na categoria "Dose" antes de criar um Copão.
-          </p>
-        )}
+        {/* ================================================== */}
+        {/* RECEITA */}
+        {/* ================================================== */}
 
-        {copoProducts.length ===
-          0 && (
-          <p className="text-sm text-orange-600 mt-2">
-            Cadastre pelo menos um produto na categoria "Copo".
-          </p>
-        )}
+        <div className="mt-8 border rounded-xl p-5">
 
-        <div className="mt-5 border rounded-lg p-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={
-                garrafinhaEnabled
-              }
-              onChange={(e) => {
-                setGarrafinhaEnabled(
-                  e.target.checked
-                )
-
-                if (
-                  !e.target.checked
-                ) {
-                  setGarrafinhaProductId(
-                    ""
-                  )
-                }
-              }}
-            />
+          <div className="flex justify-between items-center gap-4">
 
             <div>
-              <p className="font-semibold">
-                Usar garrafinha
-              </p>
+              <h3 className="font-bold text-lg">
+                Composição do Copão
+              </h3>
 
-              <p className="text-sm text-gray-500">
-                2 unidades no padrão. Cada dose extra adiciona mais 1.
+              <p className="text-sm text-gray-500 mt-1">
+                Adicione todos os produtos consumidos por cada Copão.
               </p>
             </div>
-          </label>
+
+            <button
+              type="button"
+              onClick={
+                addComponent
+              }
+              className="bg-green-700 text-white px-4 py-2 rounded-lg font-semibold"
+            >
+              ➕ Adicionar componente
+            </button>
+
+          </div>
+
+          {recipeComponents.length ===
+            0 ? (
+
+            <div className="mt-5 bg-gray-50 border rounded-lg p-4 text-gray-500">
+              Nenhum componente adicionado.
+            </div>
+
+          ) : (
+
+            <div className="mt-5 space-y-4">
+
+              {recipeComponents.map(
+                (
+                  component,
+                  index
+                ) => {
+
+                  const selectedProduct =
+                    getProduct(
+                      Number(
+                        component.product_id
+                      )
+                    )
+
+                  return (
+                    <div
+                      key={
+                        index
+                      }
+                      className="border rounded-xl p-4 bg-gray-50"
+                    >
+
+                      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+
+                        {/* PRODUTO */}
+
+                       <div className="lg:col-span-2">
+
+  <label className="block text-sm font-medium mb-1">
+    Produto
+  </label>
+
+  <input
+    type="text"
+    placeholder="Pesquisar produto..."
+    value={
+      componentSearches[index] ||
+      (
+        selectedProduct
+          ? selectedProduct.name +
+            (selectedProduct.brand
+              ? ` • ${selectedProduct.brand}`
+              : "") +
+            (selectedProduct.flavor
+              ? ` • ${selectedProduct.flavor}`
+              : "") +
+            (selectedProduct.volume
+              ? ` • ${selectedProduct.volume}`
+              : "")
+          : ""
+      )
+    }
+    onChange={(e) => {
+      setComponentSearches(
+        (previous) => ({
+          ...previous,
+          [index]:
+            e.target.value,
+        })
+      )
+
+      updateComponent(
+        index,
+        "product_id",
+        0
+      )
+    }}
+    className="border rounded-lg px-3 py-2 w-full"
+  />
+
+  {componentSearches[index] &&
+    componentSearches[index].trim() !== "" && (
+      <div className="mt-1 border rounded-lg bg-white max-h-48 overflow-auto shadow-sm">
+
+        {products
+          .filter((product) =>
+            (
+              product.name +
+              " " +
+              (product.brand || "") +
+              " " +
+              (product.flavor || "") +
+              " " +
+              (product.volume || "")
+            )
+              .toLowerCase()
+              .includes(
+                componentSearches[index]
+                  .toLowerCase()
+              )
+          )
+          .map((product) => (
+            <button
+              type="button"
+              key={product.id}
+              onClick={() => {
+                updateComponent(
+                  index,
+                  "product_id",
+                  product.id
+                )
+
+                setComponentSearches(
+                  (previous) => ({
+                    ...previous,
+                    [index]: "",
+                  })
+                )
+              }}
+              className="block w-full text-left px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
+            >
+              <p className="font-medium">
+                {product.name}
+              </p>
+
+              <p className="text-xs text-gray-500">
+                {product.brand
+                  ? `${product.brand} • `
+                  : ""}
+                {product.flavor
+                  ? `${product.flavor} • `
+                  : ""}
+                {product.volume || ""}
+              </p>
+            </button>
+          ))}
+
+      </div>
+    )}
+
+  {selectedProduct && (
+    <div className="mt-2 bg-gray-50 rounded-lg p-2">
+
+      <p className="text-sm font-medium">
+        Selecionado:{" "}
+        {selectedProduct.name}
+      </p>
+
+      <p className="text-xs text-gray-500">
+        {selectedProduct.brand
+          ? `${selectedProduct.brand} • `
+          : ""}
+        {selectedProduct.flavor
+          ? `${selectedProduct.flavor} • `
+          : ""}
+        {selectedProduct.volume || ""}
+      </p>
+
+      <p className="text-xs text-gray-500">
+        Estoque atual:{" "}
+        {Number(
+          selectedProduct.stock || 0
+        )}
+      </p>
+
+    </div>
+  )}
+
+</div>
+
+                        {/* QUANTIDADE */}
+
+                        <div>
+
+                          <label className="block text-sm font-medium mb-1">
+                            Quantidade
+                          </label>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={
+                              component.quantity
+                            }
+                            onChange={(e) =>
+                              updateComponent(
+                                index,
+                                "quantity",
+                                Number(
+                                  e.target.value
+                                )
+                              )
+                            }
+                            className="border rounded-lg px-3 py-2 w-full"
+                          />
+
+                        </div>
+
+                        {/* UNIDADE */}
+
+                        <div>
+
+                          <label className="block text-sm font-medium mb-1">
+                            Tipo
+                          </label>
+
+                          <select
+                            value={
+                              component.unit_type
+                            }
+                            onChange={(e) =>
+                              updateComponent(
+                                index,
+                                "unit_type",
+                                e.target.value
+                              )
+                            }
+                            className="border rounded-lg px-3 py-2 w-full bg-white"
+                          >
+
+                            <option value="Unidade">
+                              Unidade
+                            </option>
+
+                            <option value="Dose">
+                              Dose
+                            </option>
+
+                            <option value="Ml">
+                              ml
+                            </option>
+
+                          </select>
+
+                        </div>
+
+                        {/* FUNÇÃO */}
+
+                        <div>
+
+                          <label className="block text-sm font-medium mb-1">
+                            Função
+                          </label>
+
+                          <select
+                            value={
+                              component.role
+                            }
+                            onChange={(e) =>
+                              updateComponent(
+                                index,
+                                "role",
+                                e.target.value
+                              )
+                            }
+                            className="border rounded-lg px-3 py-2 w-full bg-white"
+                          >
+
+                            <option value="">
+  Selecione a função
+</option>
+
+                            <option value="dose">
+                              Dose
+                            </option>
+
+                            <option value="energetico">
+                              Energético
+                            </option>
+
+                            <option value="gelo">
+                              Gelo
+                            </option>
+
+                            <option value="copo">
+                              Copo
+                            </option>
+
+                            <option value="lacre">
+                              Lacre
+                            </option>
+
+                            <option value="outro">
+                              Outro
+                            </option>
+
+                          </select>
+
+                        </div>
+
+                      </div>
+
+                      <div className="flex justify-between items-center mt-4 gap-4">
+
+                       <label className="flex items-center gap-2 cursor-pointer">
+
+  <input
+    type="checkbox"
+    checked={
+      component.optional
+    }
+    disabled={
+      component.role === "gelo"
+    }
+    onChange={(e) =>
+      updateComponent(
+        index,
+        "optional",
+        e.target.checked
+      )
+    }
+  />
+
+  <span className="text-sm">
+    {component.role === "gelo"
+      ? "Escolha de gelo"
+      : "Opcional na venda"}
+  </span>
+
+</label>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeComponent(
+                              index
+                            )
+                          }
+                          className="text-red-600 text-sm font-semibold hover:underline"
+                        >
+                          🗑 Remover componente
+                        </button>
+
+                      </div>
+
+                    </div>
+                  )
+                }
+              )}
+
+            </div>
+          )}
+
         </div>
 
         {/* ================================================== */}
-        {/* RESUMO DE CUSTOS */}
+        {/* RESUMO */}
         {/* ================================================== */}
 
-        <div className="mt-5 bg-gray-50 rounded-xl p-5">
+        <div className="mt-6 bg-gray-50 rounded-xl p-5">
+
           <h3 className="font-bold text-lg">
-            Resumo de custos
+            Resumo da receita
           </h3>
 
           <div className="mt-4 space-y-2">
-            <div className="flex justify-between">
-              <span>
-                Dose × 2
-              </span>
 
-              <span>
-                R${" "}
-                {(
-                  getPurchasePrice(
-                    doseProductId
-                  ) * 2
-                ).toFixed(2)}
-              </span>
-            </div>
+            {recipeComponents.length ===
+            0 ? (
 
-            <div className="flex justify-between">
-              <span>
-                Copo × 1
-              </span>
+              <p className="text-gray-500">
+                Nenhum componente.
+              </p>
 
-              <span>
-                R${" "}
-                {getPurchasePrice(
-                  copoProductId
-                ).toFixed(2)}
-              </span>
-            </div>
+            ) : (
 
-            {garrafinhaEnabled && (
-              <div className="flex justify-between">
-                <span>
-                  Garrafinha × 2
-                </span>
+              recipeComponents.map(
+                (
+                  component,
+                  index
+                ) => (
+                  <div
+                    key={
+                      index
+                    }
+                    className="flex justify-between gap-4"
+                  >
 
-                <span>
-                  R${" "}
-                  {(
-                    getPurchasePrice(
-                      garrafinhaProductId
-                    ) * 2
-                  ).toFixed(2)}
-                </span>
-              </div>
+                    <span>
+                      {component.role
+                        ? `${component.role} — `
+                        : ""}
+                      {formatComponent(
+                        component
+                      )}
+                    {component.role === "gelo"
+  ? " • escolha 1 sabor"
+  : component.optional
+  ? " • opcional"
+  : ""}
+                    </span>
+
+                    <span>
+                      {component.unit_type ===
+                      "Ml"
+                        ? "Fracionado"
+                        : ""}
+                    </span>
+
+                  </div>
+                )
+              )
+
             )}
 
-            <div className="border-t pt-3 flex justify-between font-bold">
+            <div className="border-t pt-3 mt-3 flex justify-between font-bold">
+
               <span>
-                Custo base
+                Custo base calculável
               </span>
 
               <span>
                 R${" "}
-                {baseCost.toFixed(2)}
+                {baseCost.toFixed(
+                  2
+                )}
               </span>
+
             </div>
 
             <div className="flex justify-between">
+
               <span>
-                Preço de venda base
+                Preço de venda
               </span>
 
               <span>
                 R${" "}
-                {baseSalePrice.toFixed(2)}
+                {baseSalePrice.toFixed(
+                  2
+                )}
               </span>
+
             </div>
 
             <div className="flex justify-between text-green-700 font-bold">
+
               <span>
                 Lucro base
               </span>
 
               <span>
                 R${" "}
-                {baseProfit.toFixed(2)}
-              </span>
-            </div>
-
-            <div className="border-t pt-3 mt-3 flex justify-between">
-              <span>
-                Custo de 1 dose extra
-              </span>
-
-              <span>
-                R${" "}
-                {doseExtraCost.toFixed(
+                {baseProfit.toFixed(
                   2
                 )}
               </span>
-            </div>
 
-            <div className="flex justify-between">
-              <span>
-                Preço de 1 dose extra
-              </span>
-
-              <span>
-                R${" "}
-                {doseExtraPriceValue.toFixed(
-                  2
-                )}
-              </span>
-            </div>
-
-            <div className="flex justify-between text-blue-700 font-bold">
-              <span>
-                Lucro de 1 dose extra
-              </span>
-
-              <span>
-                R${" "}
-                {doseExtraProfit.toFixed(
-                  2
-                )}
-              </span>
             </div>
 
             <p className="text-xs text-gray-500 pt-2">
-              Energético e gelo não entram no custo base porque serão escolhidos na hora da venda.
+              Componentes em ml serão convertidos no momento da venda conforme o volume cadastrado no produto.
             </p>
+
           </div>
+
         </div>
 
-        <div className="mt-5 bg-gray-50 rounded-lg p-4">
-          <p className="font-semibold">
-            Composição padrão
-          </p>
-
-          <div className="mt-3 space-y-2 text-gray-700">
-            <p>
-              🥃{" "}
-              {getProductName(
-                Number(
-                  doseProductId
-                )
-              )}{" "}
-              →{" "}
-              <strong>
-                2 doses
-              </strong>
-            </p>
-
-            <p>
-              ⚡ Energético →{" "}
-              <strong>
-                1 unidade
-              </strong>{" "}
-              <span className="text-gray-500">
-                (escolhido na venda)
-              </span>
-            </p>
-
-            <p>
-              🧊 Gelo →{" "}
-              <strong>
-                1 unidade
-              </strong>{" "}
-              <span className="text-gray-500">
-                (escolhido na venda)
-              </span>
-            </p>
-
-            <p>
-              🥤{" "}
-              {getProductName(
-                Number(
-                  copoProductId
-                )
-              )}{" "}
-              →{" "}
-              <strong>
-                1 unidade
-              </strong>
-            </p>
-
-            {garrafinhaEnabled && (
-              <p>
-                🧴{" "}
-                {getProductName(
-                  Number(
-                    garrafinhaProductId
-                  )
-                )}{" "}
-                →{" "}
-                <strong>
-                  2 unidades
-                </strong>
-              </p>
-            )}
-          </div>
-        </div>
+        {/* ================================================== */}
+        {/* BOTÕES */}
+        {/* ================================================== */}
 
         <div className="flex gap-3 mt-6">
+
           <button
             onClick={
               saveCopao
@@ -1121,12 +1700,17 @@ function Copoes() {
               onClick={
                 clearForm
               }
+              disabled={
+                saving
+              }
               className="border px-5 py-2 rounded-lg"
             >
               Cancelar
             </button>
           )}
+
         </div>
+
       </div>
 
       {/* ================================================== */}
@@ -1134,58 +1718,83 @@ function Copoes() {
       {/* ================================================== */}
 
       <div className="mt-8">
+
         <h2 className="text-xl font-bold">
           Copões cadastrados
         </h2>
 
         {loading ? (
+
           <p className="text-gray-500 mt-4">
             Carregando...
           </p>
+
         ) : copoes.length ===
           0 ? (
+
           <div className="bg-white rounded-xl shadow p-6 mt-4">
+
             <p className="text-gray-500">
               Nenhum copão cadastrado.
             </p>
+
           </div>
+
         ) : (
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4">
+
             {copoes.map(
               (copao) => {
-                const doseCost =
-                  getPurchasePrice(
-                    String(
-                      copao.dose_product_id
-                    )
-                  ) * 2
 
-                const copoCost =
-                  getPurchasePrice(
-                    String(
-                      copao.copo_product_id ||
-                        ""
-                    )
+                const copaoComponents =
+                  getCopaoComponents(
+                    copao.id
                   )
 
-                const garrafinhaCost =
-                  copao.garrafinha_enabled
-                    ? getPurchasePrice(
-                        String(
-                          copao.garrafinha_product_id ||
-                            ""
-                        )
-                      ) * 2
-                    : 0
-
                 const totalCost =
-                  doseCost +
-                  copoCost +
-                  garrafinhaCost
+                  copaoComponents.reduce(
+                    (
+                      total,
+                      component
+                    ) => {
+                      const product =
+                        getProduct(
+                          Number(
+                            component.product_id
+                          )
+                        )
+
+                      if (!product) {
+                        return total
+                      }
+
+                      if (
+                        component.unit_type ===
+                        "Ml"
+                      ) {
+                        return total
+                      }
+
+                      return (
+                        total +
+                        Number(
+                          product.purchase_price ||
+                            0
+                        ) *
+                          Number(
+                            component.quantity ||
+                              0
+                          )
+                      )
+                    },
+                    0
+                  )
 
                 const profit =
                   Number(
-                    copao.sale_price || 0
+                    copao.sale_price ||
+                      0
                   ) -
                   totalCost
 
@@ -1196,21 +1805,23 @@ function Copoes() {
                     }
                     className="bg-white rounded-xl shadow p-5"
                   >
+
                     <div className="flex justify-between gap-4">
+
                       <div>
+
                         <h3 className="text-lg font-bold">
                           {copao.name}
                         </h3>
 
                         <p className="text-gray-500 mt-1">
-                          Dose:{" "}
-                          {getProductName(
-                            copao.dose_product_id
-                          )}
+                          Componentes:
                         </p>
+
                       </div>
 
                       <div className="text-right">
+
                         <p className="text-sm text-gray-500">
                           Venda
                         </p>
@@ -1219,13 +1830,57 @@ function Copoes() {
                           R${" "}
                           {Number(
                             copao.sale_price
-                          ).toFixed(2)}
+                          ).toFixed(
+                            2
+                          )}
                         </p>
+
                       </div>
+
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+
+                      {copaoComponents.length ===
+                      0 ? (
+
+                        <p className="text-sm text-gray-500">
+                          Nenhum componente cadastrado.
+                        </p>
+
+                      ) : (
+
+                        copaoComponents.map(
+                          (
+                            component
+                          ) => (
+                            <p
+                              key={
+                                component.id
+                              }
+                              className="text-sm text-gray-700"
+                            >
+                              •{" "}
+                              {formatComponent(
+                                component
+                              )}
+                              {component.role === "gelo"
+  ? " • escolha 1 sabor"
+  : component.optional
+  ? " • opcional"
+  : ""}
+                            </p>
+                          )
+                        )
+
+                      )}
+
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mt-5">
+
                       <div className="bg-gray-50 rounded-lg p-3">
+
                         <p className="text-xs text-gray-500">
                           Custo base
                         </p>
@@ -1236,9 +1891,11 @@ function Copoes() {
                             2
                           )}
                         </p>
+
                       </div>
 
                       <div className="bg-green-50 rounded-lg p-3">
+
                         <p className="text-xs text-gray-500">
                           Lucro base
                         </p>
@@ -1249,57 +1906,13 @@ function Copoes() {
                             2
                           )}
                         </p>
+
                       </div>
 
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500">
-                          Dose
-                        </p>
-
-                        <p className="font-semibold">
-                          2 unidades
-                        </p>
-                      </div>
-
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500">
-                          Dose extra
-                        </p>
-
-                        <p className="font-semibold">
-                          R${" "}
-                          {Number(
-                            copao.dose_extra_price
-                          ).toFixed(
-                            2
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500">
-                          Copo
-                        </p>
-
-                        <p className="font-semibold">
-                          1 unidade
-                        </p>
-                      </div>
-
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500">
-                          Garrafinha
-                        </p>
-
-                        <p className="font-semibold">
-                          {copao.garrafinha_enabled
-                            ? "2 unidades • opcional"
-                            : "Não usa"}
-                        </p>
-                      </div>
                     </div>
 
                     <div className="flex gap-3 mt-5">
+
                       <button
                         onClick={() =>
                           editCopao(
@@ -1321,14 +1934,20 @@ function Copoes() {
                       >
                         Excluir
                       </button>
+
                     </div>
+
                   </div>
                 )
               }
             )}
+
           </div>
+
         )}
+
       </div>
+
     </div>
   )
 }
