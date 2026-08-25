@@ -71,6 +71,8 @@ function Caixa() {
 
   const [showClosedHistory, setShowClosedHistory] =
     useState(false)
+    const [showFinancialDetails, setShowFinancialDetails] =
+  useState<"vendido" | "recebido" | "fretes" | "lucro" | null>(null)
 
   const [selectedClosedCash, setSelectedClosedCash] =
     useState<any | null>(null)
@@ -816,39 +818,49 @@ function Caixa() {
   ============================================================
   */
 
-  const fiadosRecebidos =
-    cashRegister
-      ? sales.filter(
-          (sale) => {
-            if (
-              sale.payment !==
-                "Fiado" ||
-              sale.status !==
-                "Pago"
-            ) {
-              return false
-            }
-
-            if (
-              sale.received_cash_register_id ===
-                null ||
-              sale.received_cash_register_id ===
-                undefined
-            ) {
-              return false
-            }
-
-            return (
-              String(
-                sale.received_cash_register_id
-              ) ===
-              String(
-                cashRegister.id
-              )
-            )
+ const fiadosRecebidos =
+  cashRegister
+    ? sales.filter(
+        (sale) => {
+          if (
+            sale.payment !== "Fiado" ||
+            sale.status !== "Pago"
+          ) {
+            return false
           }
-        )
-      : []
+
+          const receivedRegisterId =
+            sale.received_cash_register_id
+
+          if (
+            receivedRegisterId !== null &&
+            receivedRegisterId !== undefined &&
+            String(receivedRegisterId) ===
+              String(cashRegister.id)
+          ) {
+            return true
+          }
+
+          if (!sale.received_at) {
+            return false
+          }
+
+          const receivedAt =
+            new Date(
+              sale.received_at
+            )
+
+          const openedAt =
+            new Date(
+              cashRegister.opened_at
+            )
+
+          return (
+            receivedAt >= openedAt
+          )
+        }
+      )
+    : []
 
   /*
   ============================================================
@@ -1078,18 +1090,14 @@ function Caixa() {
   ============================================================
   */
 
-  const totalVendido =
-    vendasDoCaixa.reduce(
-      (
-        total,
-        sale
-      ) =>
-        total +
-        getDadosFinanceiros(
-          sale
-        ).custo,
-      0
-    )
+const totalVendido =
+  vendasDoCaixa.reduce(
+    (total, sale) =>
+      total +
+      Number(sale.total || 0) -
+      Number(sale.delivery_fee || 0),
+    0
+  )
 
   /*
   ============================================================
@@ -1097,18 +1105,13 @@ function Caixa() {
   ============================================================
   */
 
-  const recebido =
-    recebimentosDoCaixa.reduce(
-      (
-        total,
-        sale
-      ) =>
-        total +
-        getDadosFinanceiros(
-          sale
-        ).custo,
-      0
-    )
+ const recebido =
+  recebimentosDoCaixa.reduce(
+    (total, sale) =>
+      total +
+      getValorRecebido(sale),
+    0
+  )
 
   /*
   ============================================================
@@ -1116,18 +1119,14 @@ function Caixa() {
   ============================================================
   */
 
-  const totalFretes =
-    recebimentosDoCaixa.reduce(
-      (
-        total,
-        sale
-      ) =>
-        total +
-        getDadosFinanceiros(
-          sale
-        ).frete,
-      0
-    )
+ 
+const totalFretes =
+  recebimentosDoCaixa.reduce(
+    (total, sale) =>
+      total +
+      Number(sale.delivery_fee || 0),
+    0
+  )
 
   /*
   ============================================================
@@ -1135,18 +1134,13 @@ function Caixa() {
   ============================================================
   */
 
-  const lucroTotal =
-    recebimentosDoCaixa.reduce(
-      (
-        total,
-        sale
-      ) =>
-        total +
-        getDadosFinanceiros(
-          sale
-        ).lucro,
-      0
-    )
+ const lucroTotal =
+  recebimentosDoCaixa.reduce(
+    (total, sale) =>
+      total +
+      getDadosFinanceiros(sale).lucro,
+    0
+  )
 
   /*
   ============================================================
@@ -2506,85 +2500,167 @@ function Caixa() {
 
       )}
 
-      {/* RESUMO */}
+           {/* RESUMO */}
 
       <div className="grid grid-cols-2 xl:grid-cols-8 gap-6 mt-8">
 
+        {/* VENDIDO */}
+
         <div className="bg-white p-6 rounded-xl shadow">
 
-          <p className="text-gray-500">
-            💰 Vendido
-          </p>
+          <div className="flex justify-between items-start gap-3">
 
-          <p className="text-sm text-gray-400 mt-1">
-            Custo dos produtos das vendas pagas neste caixa.
-          </p>
+            <div>
+              <p className="text-gray-500">
+                💰 Vendido
+              </p>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Produtos vendidos normalmente neste caixa.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowFinancialDetails(
+                  showFinancialDetails === "vendido"
+                    ? null
+                    : "vendido"
+                )
+              }
+              className="text-gray-500 hover:text-blue-700 text-xl"
+              title="Ver detalhes"
+            >
+              👁️
+            </button>
+
+          </div>
 
           <h2 className="text-2xl font-bold mt-2">
-            R${" "}
-            {totalVendido.toFixed(
-              2
-            )}
+            R$ {totalVendido.toFixed(2)}
           </h2>
 
         </div>
 
+        {/* RECEBIDO */}
+
         <div className="bg-white p-6 rounded-xl shadow">
 
-          <p className="text-gray-500">
-            💵 Recebido
-          </p>
+          <div className="flex justify-between items-start gap-3">
 
-          <p className="text-sm text-gray-400 mt-1">
-            Custo dos produtos que realmente foram recebidos.
-          </p>
+            <div>
+              <p className="text-gray-500">
+                💵 Recebido
+              </p>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Produtos pagos + fiados quitados.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowFinancialDetails(
+                  showFinancialDetails === "recebido"
+                    ? null
+                    : "recebido"
+                )
+              }
+              className="text-gray-500 hover:text-blue-700 text-xl"
+              title="Ver detalhes"
+            >
+              👁️
+            </button>
+
+          </div>
 
           <h2 className="text-2xl font-bold text-green-600 mt-2">
-            R${" "}
-            {recebido.toFixed(
-              2
-            )}
+            R$ {recebido.toFixed(2)}
           </h2>
 
         </div>
 
+        {/* FRETES */}
+
         <div className="bg-white p-6 rounded-xl shadow">
 
-          <p className="text-gray-500">
-            🚚 Fretes
-          </p>
+          <div className="flex justify-between items-start gap-3">
 
-          <p className="text-sm text-gray-400 mt-1">
-            Fretes realmente recebidos neste caixa.
-          </p>
+            <div>
+              <p className="text-gray-500">
+                🚚 Fretes
+              </p>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Fretes das vendas e dos fiados quitados.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowFinancialDetails(
+                  showFinancialDetails === "fretes"
+                    ? null
+                    : "fretes"
+                )
+              }
+              className="text-gray-500 hover:text-blue-700 text-xl"
+              title="Ver detalhes"
+            >
+              👁️
+            </button>
+
+          </div>
 
           <h2 className="text-2xl font-bold mt-2">
-            R${" "}
-            {totalFretes.toFixed(
-              2
-            )}
+            R$ {totalFretes.toFixed(2)}
           </h2>
 
         </div>
+
+        {/* LUCRO */}
 
         <div className="bg-white p-6 rounded-xl shadow">
 
-          <p className="text-gray-500">
-            📈 Lucro
-          </p>
+          <div className="flex justify-between items-start gap-3">
 
-          <p className="text-sm text-gray-400 mt-1">
-            Lucro das vendas recebidas, já descontando descontos.
-          </p>
+            <div>
+              <p className="text-gray-500">
+                📈 Lucro
+              </p>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Lucro das vendas + fiados quitados.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowFinancialDetails(
+                  showFinancialDetails === "lucro"
+                    ? null
+                    : "lucro"
+                )
+              }
+              className="text-gray-500 hover:text-blue-700 text-xl"
+              title="Ver detalhes"
+            >
+              👁️
+            </button>
+
+          </div>
 
           <h2 className="text-2xl font-bold text-green-700 mt-2">
-            R${" "}
-            {lucroTotal.toFixed(
-              2
-            )}
+            R$ {lucroTotal.toFixed(2)}
           </h2>
 
         </div>
+
+        {/* QUANTIDADE DE VENDAS */}
 
         <div className="bg-white p-6 rounded-xl shadow">
 
@@ -2602,6 +2678,8 @@ function Caixa() {
 
         </div>
 
+        {/* TOTAL RECEBIDO */}
+
         <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl shadow">
 
           <p className="text-blue-700 font-semibold">
@@ -2613,13 +2691,12 @@ function Caixa() {
           </p>
 
           <h2 className="text-2xl font-bold text-blue-800 mt-2">
-            R${" "}
-            {totalRecebidoPeriodo.toFixed(
-              2
-            )}
+            R$ {totalRecebidoPeriodo.toFixed(2)}
           </h2>
 
         </div>
+
+        {/* SAÍDAS */}
 
         <div className="bg-red-50 border border-red-200 p-6 rounded-xl shadow">
 
@@ -2632,13 +2709,12 @@ function Caixa() {
           </p>
 
           <h2 className="text-2xl font-bold text-red-700 mt-2">
-            R${" "}
-            {totalSaidas.toFixed(
-              2
-            )}
+            R$ {totalSaidas.toFixed(2)}
           </h2>
 
         </div>
+
+        {/* SALDO */}
 
         <div className="bg-purple-50 border border-purple-200 p-6 rounded-xl shadow">
 
@@ -2651,17 +2727,365 @@ function Caixa() {
           </p>
 
           <h2 className="text-2xl font-bold text-purple-800 mt-2">
-            R${" "}
-            {saldoDisponivel.toFixed(
-              2
-            )}
+            R$ {saldoDisponivel.toFixed(2)}
           </h2>
 
         </div>
 
       </div>
 
+           {/* DETALHES DOS INDICADORES */}
+
+      {showFinancialDetails && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+
+            {/* CABEÇALHO DA MODAL */}
+
+            <div className="p-6 border-b flex justify-between items-center gap-4">
+
+              <div>
+
+                <h2 className="text-xl font-bold">
+
+                  {showFinancialDetails === "vendido" &&
+                    "💰 Detalhes do vendido"}
+
+                  {showFinancialDetails === "recebido" &&
+                    "💵 Detalhes do recebido"}
+
+                  {showFinancialDetails === "fretes" &&
+                    "🚚 Detalhes dos fretes"}
+
+                  {showFinancialDetails === "lucro" &&
+                    "📈 Detalhes do lucro"}
+
+                </h2>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Somente os valores considerados neste indicador.
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowFinancialDetails(null)
+                }
+                className="text-gray-500 hover:text-black text-2xl"
+              >
+                ✕
+              </button>
+
+            </div>
+
+            {/* CONTEÚDO */}
+
+            <div className="p-6">
+
+              {/* VENDIDO */}
+
+              {showFinancialDetails === "vendido" && (
+                <div className="space-y-3">
+
+                  {vendasDoCaixa.length === 0 ? (
+
+                    <p className="text-gray-500">
+                      Nenhuma venda normal neste caixa.
+                    </p>
+
+                  ) : (
+
+                    vendasDoCaixa.map((sale) => {
+
+                      const valorProdutos =
+                        Number(sale.total || 0) -
+                        Number(sale.delivery_fee || 0)
+
+                      return (
+                        <div
+                          key={sale.id}
+                          className="border rounded-lg p-4 flex justify-between gap-4"
+                        >
+
+                          <div>
+
+                            <p className="font-semibold">
+                              {sale.product || "Venda"}
+                            </p>
+
+                            <p className="text-sm text-gray-500">
+                              {sale.customer || "Cliente não informado"}
+                            </p>
+
+                            <p className="text-sm text-gray-500">
+                              {formatDate(sale.date)}
+                            </p>
+
+                          </div>
+
+                          <div className="text-right">
+
+                            <p className="text-xs text-gray-500">
+                              Produtos
+                            </p>
+
+                            <p className="font-bold">
+                              R$ {valorProdutos.toFixed(2)}
+                            </p>
+
+                          </div>
+
+                        </div>
+                      )
+
+                    })
+
+                  )}
+
+                </div>
+              )}
+
+              {/* RECEBIDO */}
+
+              {showFinancialDetails === "recebido" && (
+                <div className="space-y-3">
+
+                  {recebimentosDoCaixa.length === 0 ? (
+
+                    <p className="text-gray-500">
+                      Nenhum recebimento neste caixa.
+                    </p>
+
+                  ) : (
+
+                    recebimentosDoCaixa.map((sale) => {
+
+                      const valor =
+                        getValorRecebido(sale)
+
+                      const fiadoRecebido =
+                        sale.payment === "Fiado"
+
+                      return (
+                        <div
+                          key={sale.id}
+                          className="border rounded-lg p-4"
+                        >
+
+                          <div className="flex justify-between gap-4">
+
+                            <div>
+
+                              <p className="font-semibold">
+                                {fiadoRecebido
+                                  ? "📝 Fiado quitado"
+                                  : "🛒 Venda normal"}
+                              </p>
+
+                              <p className="text-sm text-gray-700">
+                                {sale.product || "Venda"}
+                              </p>
+
+                              <p className="text-sm text-gray-500">
+                                Cliente:{" "}
+                                {sale.customer || "Não informado"}
+                              </p>
+
+                              <p className="text-sm text-gray-500">
+                                Pagamento:{" "}
+                                {fiadoRecebido
+                                  ? sale.received_payment || "Não informado"
+                                  : sale.payment}
+                              </p>
+
+                              {fiadoRecebido && (
+                                <p className="text-sm text-gray-500">
+                                  Quitado em:{" "}
+                                  {formatDate(sale.received_at)}
+                                </p>
+                              )}
+
+                            </div>
+
+                            <div className="text-right">
+
+                              <p className="text-xs text-gray-500">
+                                Produtos
+                              </p>
+
+                              <p className="font-bold text-green-700">
+                                R$ {valor.toFixed(2)}
+                              </p>
+
+                            </div>
+
+                          </div>
+
+                        </div>
+                      )
+
+                    })
+
+                  )}
+
+                </div>
+              )}
+
+              {/* FRETES */}
+
+              {showFinancialDetails === "fretes" && (
+                <div className="space-y-3">
+
+                  {recebimentosDoCaixa.filter(
+                    (sale) =>
+                      Number(sale.delivery_fee || 0) > 0
+                  ).length === 0 ? (
+
+                    <p className="text-gray-500">
+                      Nenhum frete recebido neste caixa.
+                    </p>
+
+                  ) : (
+
+                    recebimentosDoCaixa
+                      .filter(
+                        (sale) =>
+                          Number(sale.delivery_fee || 0) > 0
+                      )
+                      .map((sale) => (
+
+                        <div
+                          key={sale.id}
+                          className="border rounded-lg p-4 flex justify-between gap-4"
+                        >
+
+                          <div>
+
+                            <p className="font-semibold">
+                              {sale.payment === "Fiado"
+                                ? "📝 Fiado quitado"
+                                : "🛒 Venda normal"}
+                            </p>
+
+                            <p className="text-sm text-gray-500">
+                              {sale.customer || "Cliente não informado"}
+                            </p>
+
+                          </div>
+
+                          <p className="font-bold">
+                            R$ {Number(
+                              sale.delivery_fee || 0
+                            ).toFixed(2)}
+                          </p>
+
+                        </div>
+
+                      ))
+
+                  )}
+
+                </div>
+              )}
+
+              {/* LUCRO */}
+
+              {showFinancialDetails === "lucro" && (
+                <div className="space-y-3">
+
+                  {recebimentosDoCaixa.length === 0 ? (
+
+                    <p className="text-gray-500">
+                      Nenhum lucro registrado neste caixa.
+                    </p>
+
+                  ) : (
+
+                    recebimentosDoCaixa.map((sale) => {
+
+                      const lucro =
+                        getDadosFinanceiros(sale).lucro
+
+                      return (
+                        <div
+                          key={sale.id}
+                          className="border rounded-lg p-4 flex justify-between gap-4"
+                        >
+
+                          <div>
+
+                            <p className="font-semibold">
+                              {sale.payment === "Fiado"
+                                ? "📝 Fiado quitado"
+                                : "🛒 Venda normal"}
+                            </p>
+
+                            <p className="text-sm text-gray-500">
+                              {sale.customer || "Cliente não informado"}
+                            </p>
+
+                            <p className="text-sm text-gray-500">
+                              {sale.payment === "Fiado"
+                                ? `Quitado em ${formatDate(
+                                    sale.received_at
+                                  )}`
+                                : formatDate(sale.date)}
+                            </p>
+
+                          </div>
+
+                          <p className="font-bold text-green-700">
+                            R$ {lucro.toFixed(2)}
+                          </p>
+
+                        </div>
+                      )
+
+                    })
+
+                  )}
+
+                </div>
+              )}
+
+            </div>
+
+            {/* TOTAL */}
+
+            <div className="p-6 border-t flex justify-between font-bold text-lg">
+
+              <span>
+                Total
+              </span>
+
+              <span>
+
+                {showFinancialDetails === "vendido" &&
+                  `R$ ${totalVendido.toFixed(2)}`}
+
+                {showFinancialDetails === "recebido" &&
+                  `R$ ${recebido.toFixed(2)}`}
+
+                {showFinancialDetails === "fretes" &&
+                  `R$ ${totalFretes.toFixed(2)}`}
+
+                {showFinancialDetails === "lucro" &&
+                  `R$ ${lucroTotal.toFixed(2)}`}
+
+              </span>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
       {/* LUCRO DISPONÍVEL */}
+      
 
       <div className="mt-6 bg-green-50 border border-green-200 p-5 rounded-xl">
 
@@ -3629,10 +4053,13 @@ function Caixa() {
         0 && (
         <div className="mt-8 bg-white p-6 rounded-xl shadow">
 
-          <h2 className="font-bold text-lg">
-            💰 Fiados recebidos neste caixa
-          </h2>
+         <h2 className="font-bold text-lg">
+  ✅ Fiados pagos neste caixa
+</h2>
 
+<p className="text-sm text-gray-500 mt-1">
+  Aqui aparecem os fiados que foram quitados e o valor que realmente entrou no caixa.
+</p>
           <div className="mt-4 space-y-3">
 
             {fiadosRecebidos.map(
