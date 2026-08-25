@@ -13,22 +13,23 @@ function Vendas() {
   const [quantity, setQuantity] = useState("")
   const [productSearch, setProductSearch] = useState("")
 
- const [selectedCopaoId, setSelectedCopaoId] =
-  useState("")
+  const [selectedCopaoId, setSelectedCopaoId] =
+    useState("")
+
   const [selectedGeloComponentId, setSelectedGeloComponentId] =
-  useState("")
+    useState("")
 
-const [extraDoses, setExtraDoses] =
-  useState("0")
+  const [extraDoses, setExtraDoses] =
+    useState("0")
 
-const [copaoQuantity, setCopaoQuantity] =
-  useState("1")
+  const [copaoQuantity, setCopaoQuantity] =
+    useState("1")
 
-const [copaoComponents, setCopaoComponents] =
-  useState<any[]>([])
+  const [copaoComponents, setCopaoComponents] =
+    useState<any[]>([])
 
-const [optionalCopaoComponents, setOptionalCopaoComponents] =
-  useState<Record<number, boolean>>({})
+  const [optionalCopaoComponents, setOptionalCopaoComponents] =
+    useState<Record<number, boolean>>({})
 
   const [cart, setCart] = useState<any[]>([])
 
@@ -123,6 +124,9 @@ const [optionalCopaoComponents, setOptionalCopaoComponents] =
     } = await supabase
       .from("products")
       .select("*")
+      .order("name", {
+        ascending: true,
+      })
 
     const {
       data: salesData,
@@ -144,25 +148,13 @@ const [optionalCopaoComponents, setOptionalCopaoComponents] =
       .order("name", {
         ascending: true,
       })
-      const {
-  data: copaoComponentsData,
-  error: copaoComponentsError,
-} = await supabase
-  .from("copao_components")
-  .select(`
-    *,
-    products (
-      id,
-      name,
-      category,
-      brand,
-      flavor,
-      volume,
-      purchase_price,
-      sale_price,
-      stock
-    )
-  `)
+
+    const {
+      data: copaoComponentsData,
+      error: copaoComponentsError,
+    } = await supabase
+      .from("copao_components")
+      .select("*")
 
     if (productsError) {
       console.error(
@@ -184,105 +176,55 @@ const [optionalCopaoComponents, setOptionalCopaoComponents] =
         copoesError
       )
     }
+
     if (copaoComponentsError) {
-  console.error(
-    "ERRO AO CARREGAR COMPONENTES DOS COPÕES:",
-    copaoComponentsError
-  )
-}
-if (copaoComponentsData) {
-  setCopaoComponents(
-    copaoComponentsData.map(
-      (item: any) => ({
-        ...item,
-
-        productId:
-          Number(
-            item.product_id
-          ),
-
-        quantity:
-          Number(
-            item.quantity || 0
-          ),
-
-        optional:
-          Boolean(
-            item.optional
-          ),
-
-        product:
-          item.products
-            ? {
-                ...item.products,
-
-                purchasePrice:
-                  Number(
-                    item.products.purchase_price ||
-                      0
-                  ),
-
-                salePrice:
-                  Number(
-                    item.products.sale_price ||
-                      0
-                  ),
-
-                stock:
-                  Number(
-                    item.products.stock ||
-                      0
-                  ),
-              }
-            : null,
-      })
-    )
-  )
-}
-
-    if (productsData) {
-      const formattedProducts =
-        productsData.map(
-          (item: any) => ({
-            ...item,
-
-            entryType:
-              item.entry_type,
-
-            itemsPerPackage:
-              item.items_per_package,
-
-            purchasePrice:
-              Number(
-                item.purchase_price || 0
-              ),
-
-            salePrice:
-              Number(
-                item.sale_price || 0
-              ),
-
-            salePricePackage:
-              item.sale_price_package !==
-                null &&
-              item.sale_price_package !==
-                undefined
-                ? Number(
-                    item.sale_price_package
-                  )
-                : null,
-
-            stock:
-              Number(
-                item.stock || 0
-              ),
-          })
-        )
-
-      setProducts(
-        formattedProducts
+      console.error(
+        "ERRO AO CARREGAR COMPONENTES DOS COPÕES:",
+        copaoComponentsError
       )
     }
+
+    const formattedProducts =
+      (productsData || []).map(
+        (item: any) => ({
+          ...item,
+
+          entryType:
+            item.entry_type,
+
+          itemsPerPackage:
+            item.items_per_package,
+
+          purchasePrice:
+            Number(
+              item.purchase_price || 0
+            ),
+
+          salePrice:
+            Number(
+              item.sale_price || 0
+            ),
+
+          salePricePackage:
+            item.sale_price_package !==
+              null &&
+            item.sale_price_package !==
+              undefined
+              ? Number(
+                  item.sale_price_package
+                )
+              : null,
+
+          stock:
+            Number(
+              item.stock || 0
+            ),
+        })
+      )
+
+    setProducts(
+      formattedProducts
+    )
 
     if (salesData) {
       setSales(salesData)
@@ -290,6 +232,68 @@ if (copaoComponentsData) {
 
     if (copoesData) {
       setCopoes(copoesData)
+    }
+
+    if (copaoComponentsData) {
+      setCopaoComponents(
+        copaoComponentsData.map(
+          (item: any) => {
+            const product =
+              formattedProducts.find(
+                (product: any) =>
+                  Number(
+                    product.id
+                  ) ===
+                  Number(
+                    item.product_id
+                  )
+              )
+
+            return {
+              ...item,
+
+              copao_id:
+                Number(
+                  item.copao_id
+                ),
+
+              productId:
+                Number(
+                  item.product_id
+                ),
+
+              quantity:
+                Number(
+                  item.quantity || 0
+                ),
+
+              unit_type:
+                item.unit_type ||
+                "Unidade",
+
+              role:
+                item.role ||
+                item.component_type ||
+                "",
+
+              component_type:
+                item.component_type ||
+                item.role ||
+                "",
+
+              optional:
+                item.role === "gelo"
+                  ? true
+                  : Boolean(
+                      item.optional
+                    ),
+
+              product:
+                product || null,
+            }
+          }
+        )
+      )
     }
   }
 
@@ -311,8 +315,6 @@ if (copaoComponentsData) {
         )
     )
 
- 
-
   const selectedCopao =
     copoes.find(
       (copao) =>
@@ -321,8 +323,6 @@ if (copaoComponentsData) {
           selectedCopaoId
         )
     )
-
- 
 
   function formatDateTime(
     dateValue: string
@@ -550,588 +550,539 @@ if (copaoComponentsData) {
     setProductSearch("")
     setSaleType("Unidade")
   }
-function parseVolumeToMl(
-  volume: string | undefined
-) {
-  if (!volume) {
-    return 0
-  }
 
-  const normalized =
-    String(volume)
-      .trim()
-      .toLowerCase()
-      .replace(",", ".")
-
-  const numberMatch =
-    normalized.match(
-      /[\d.]+/
-    )
-
-  if (!numberMatch) {
-    return 0
-  }
-
-  const value =
-    Number(
-      numberMatch[0]
-    )
-
-  if (
-    normalized.includes("ml")
+  function parseVolumeToMl(
+    volume: string | undefined
   ) {
+    if (!volume) {
+      return 0
+    }
+
+    const normalized =
+      String(volume)
+        .trim()
+        .toLowerCase()
+        .replace(",", ".")
+
+    const numberMatch =
+      normalized.match(
+        /[\d.]+/
+      )
+
+    if (!numberMatch) {
+      return 0
+    }
+
+    const value =
+      Number(
+        numberMatch[0]
+      )
+
+    if (
+      Number.isNaN(value)
+    ) {
+      return 0
+    }
+
+    if (
+      normalized.includes("ml")
+    ) {
+      return value
+    }
+
+    if (
+      normalized.includes("cl")
+    ) {
+      return value * 10
+    }
+
+    if (
+      normalized.includes("l")
+    ) {
+      return value * 1000
+    }
+
     return value
   }
 
-  if (
-    normalized.includes("cl")
-  ) {
-    return value * 10
-  }
-
-  if (
-    normalized.includes("l")
-  ) {
-    return value * 1000
-  }
-
-  return value
-}
   function addCopaoToCart() {
-  if (!selectedCopao) {
-    alert(
-      "Selecione um Copão."
-    )
-    return
-  }
-
-  const qtdCopoes =
-    Number(
-      copaoQuantity
-    )
-
-  const qtdExtras =
-    Number(
-      extraDoses || 0
-    )
-
-  if (
-    qtdCopoes <= 0
-  ) {
-    alert(
-      "Quantidade de Copões inválida."
-    )
-    return
-  }
-
-  if (
-    qtdExtras < 0
-  ) {
-    alert(
-      "Quantidade de doses extras inválida."
-    )
-    return
-  }
-
-  const components =
-    copaoComponents.filter(
-      (component: any) =>
-        Number(
-          component.copao_id
-        ) ===
-        Number(
-          selectedCopao.id
-        )
-    )
-
-  if (
-    components.length ===
-    0
-  ) {
-    alert(
-      "Esse Copão ainda não possui uma receita cadastrada."
-    )
-    return
-  }
-
-const geloComponents =
-  components.filter(
-    (component: any) =>
-      component.role === "gelo"
-  )
-
-if (
-  geloComponents.length > 0 &&
-  !selectedGeloComponentId
-) {
-  alert(
-    "Escolha um sabor de gelo."
-  )
-  return
-}
-
-const selectedGeloComponent =
-  geloComponents.find(
-    (component: any) =>
-      Number(component.id) ===
-      Number(
-        selectedGeloComponentId
+    if (!selectedCopao) {
+      alert(
+        "Selecione um Copão."
       )
-  )
+      return
+    }
 
-if (
-  geloComponents.length > 0 &&
-  !selectedGeloComponent
-) {
-  alert(
-    "O sabor de gelo escolhido não foi encontrado."
-  )
-  return
-}
+    const qtdCopoes =
+      Number(
+        copaoQuantity
+      )
 
-const selectedComponents =
-  components.filter(
-    (component: any) => {
+    const qtdExtras =
+      Number(
+        extraDoses || 0
+      )
 
-      /*
-      ----------------------------------------------------------
-      GELO
-      ----------------------------------------------------------
-      */
+    if (
+      qtdCopoes <= 0
+    ) {
+      alert(
+        "Quantidade de Copões inválida."
+      )
+      return
+    }
 
-      if (
-        component.role === "gelo"
-      ) {
-        return (
-          Number(component.id) ===
+    if (
+      qtdExtras < 0
+    ) {
+      alert(
+        "Quantidade de doses extras inválida."
+      )
+      return
+    }
+
+    const components =
+      copaoComponents.filter(
+        (component: any) =>
+          Number(
+            component.copao_id
+          ) ===
+          Number(
+            selectedCopao.id
+          )
+      )
+
+    if (
+      components.length ===
+      0
+    ) {
+      alert(
+        "Esse Copão ainda não possui uma receita cadastrada."
+      )
+      return
+    }
+
+    const geloComponents =
+      components.filter(
+        (component: any) =>
+          component.role ===
+          "gelo"
+      )
+
+    if (
+      geloComponents.length >
+        0 &&
+      !selectedGeloComponentId
+    ) {
+      alert(
+        "Escolha um sabor de gelo."
+      )
+      return
+    }
+
+    const selectedGeloComponent =
+      geloComponents.find(
+        (component: any) =>
+          Number(
+            component.id
+          ) ===
           Number(
             selectedGeloComponentId
           )
-        )
-      }
-
-      /*
-      ----------------------------------------------------------
-      OUTROS COMPONENTES
-      ----------------------------------------------------------
-      */
-
-      if (
-        !component.optional
-      ) {
-        return true
-      }
-
-      return (
-        optionalCopaoComponents[
-          component.id
-        ] === true
       )
+
+    if (
+      geloComponents.length >
+        0 &&
+      !selectedGeloComponent
+    ) {
+      alert(
+        "O sabor de gelo escolhido não foi encontrado."
+      )
+      return
     }
-  )
-    
 
-  const stockItems: any[] = []
+    const selectedComponents =
+      components.filter(
+        (component: any) => {
 
-  let unitCost = 0
+          if (
+            component.role ===
+            "gelo"
+          ) {
+            return (
+              Number(
+                component.id
+              ) ===
+              Number(
+                selectedGeloComponentId
+              )
+            )
+          }
 
-  /*
-  ============================================================
-  COMPONENTES DA RECEITA
-  ============================================================
-  */
+          if (
+            !component.optional
+          ) {
+            return true
+          }
 
-  for (
-    const component of selectedComponents
-  ) {
-    const product =
-      products.find(
-        (item) =>
-          item.id ===
-          Number(
-            component.productId
+          return (
+            optionalCopaoComponents[
+              component.id
+            ] === true
           )
+        }
       )
 
-    if (!product) {
-      alert(
-        `Produto não encontrado para o componente ${component.id}.`
-      )
-      return
-    }
+    const stockItems: any[] = []
 
-    const quantityPerCopao =
-      Number(
-        component.quantity || 0
-      )
+    let unitCost = 0
 
-    if (
-      quantityPerCopao <= 0
+    for (
+      const component of selectedComponents
     ) {
-      alert(
-        `Quantidade inválida para ${product.name}.`
-      )
-      return
-    }
-
-    let stockQuantityPerCopao =
-      quantityPerCopao
-
-    /*
-    ------------------------------------------------------------
-    CONSUMO FRACIONADO EM ML
-    ------------------------------------------------------------
-    */
-
-    if (
-      component.unit_type ===
-      "Ml"
-    ) {
-      const volumeMl =
-        parseVolumeToMl(
-          product.volume
+      const product =
+        products.find(
+          (item) =>
+            item.id ===
+            Number(
+              component.productId
+            )
         )
 
-      if (
-        volumeMl <= 0
-      ) {
+      if (!product) {
         alert(
-          `O produto ${product.name} precisa ter um volume cadastrado para ser usado em ml.`
+          `Produto não encontrado para o componente ${component.id}.`
         )
         return
       }
 
-      /*
-      Exemplo:
-      garrafa 1L
-      consumo 200ml
-      estoque baixa 0,20 garrafa
-      */
-
-      stockQuantityPerCopao =
-        quantityPerCopao /
-        volumeMl
-    }
-
-    const totalStockQuantity =
-      stockQuantityPerCopao *
-      qtdCopoes
-
-    stockItems.push({
-      id:
-        product.id,
-
-      name:
-        product.name,
-
-      quantity:
-        totalStockQuantity,
-
-      quantityPerCopao:
-        quantityPerCopao,
-
-      unitType:
-        component.unit_type,
-
-      role:
-        component.role,
-
-      productVolume:
-        product.volume || null,
-    })
-
-    /*
-    ------------------------------------------------------------
-    CUSTO
-    ------------------------------------------------------------
-    */
-
-    unitCost +=
-      Number(
-        product.purchasePrice || 0
-      ) *
-      stockQuantityPerCopao
-  }
-
-  /*
-  ============================================================
-  DOSES EXTRAS
-  ============================================================
-  */
-
-  const doseComponent =
-    components.find(
-      (component: any) =>
-        component.role ===
-        "dose"
-    )
-
-  let extraDoseCost = 0
-
-  if (
-    qtdExtras > 0 &&
-    !doseComponent
-  ) {
-    alert(
-      "Esse Copão não possui uma dose cadastrada para receber doses extras."
-    )
-    return
-  }
-
-  if (
-    doseComponent &&
-    qtdExtras > 0
-  ) {
-    const doseProduct =
-      products.find(
-        (product) =>
-          product.id ===
-          Number(
-            doseComponent.productId
-          )
-      )
-
-    if (!doseProduct) {
-      alert(
-        "Produto da dose não encontrado."
-      )
-      return
-    }
-
-    const extraDoseQuantity =
-      qtdExtras *
-      qtdCopoes
-
-    stockItems.push({
-      id:
-        doseProduct.id,
-
-      name:
-        doseProduct.name,
-
-      quantity:
-        extraDoseQuantity,
-
-      quantityPerCopao:
-        qtdExtras,
-
-      unitType:
-        "Dose",
-
-      role:
-        "dose-extra",
-    })
-
-    extraDoseCost =
-      Number(
-        doseProduct.purchasePrice ||
-          0
-      ) *
-      qtdExtras
-  }
-
-  /*
-  ============================================================
-  VERIFICA ESTOQUE
-  ============================================================
-  */
-
-  const requiredStock: Record<
-    number,
-    number
-  > = {}
-
-  stockItems.forEach(
-    (item) => {
-      requiredStock[
-        item.id
-      ] =
-        (
-          requiredStock[
-            item.id
-          ] || 0
-        ) +
+      const quantityPerCopao =
         Number(
-          item.quantity || 0
+          component.quantity ||
+            0
         )
-    }
-  )
 
-  for (
-    const [
-      id,
-      required,
-    ] of Object.entries(
-      requiredStock
-    )
-  ) {
-    const product =
-      products.find(
-        (item) =>
-          item.id ===
-          Number(id)
+      if (
+        quantityPerCopao <=
+        0
+      ) {
+        alert(
+          `Quantidade inválida para ${product.name}.`
+        )
+        return
+      }
+
+      let stockQuantityPerCopao =
+        quantityPerCopao
+
+      if (
+        component.unit_type ===
+        "Ml"
+      ) {
+        const volumeMl =
+          parseVolumeToMl(
+            product.volume
+          )
+
+        if (
+          volumeMl <= 0
+        ) {
+          alert(
+            `O produto ${product.name} precisa ter um volume cadastrado para ser usado em ml.`
+          )
+          return
+        }
+
+        stockQuantityPerCopao =
+          quantityPerCopao /
+          volumeMl
+      }
+
+      const totalStockQuantity =
+        stockQuantityPerCopao *
+        qtdCopoes
+
+      stockItems.push({
+        id:
+          product.id,
+
+        name:
+          product.name,
+
+        quantity:
+          totalStockQuantity,
+
+        quantityPerCopao:
+          quantityPerCopao,
+
+        unitType:
+          component.unit_type,
+
+        role:
+          component.role,
+
+        productVolume:
+          product.volume ||
+          null,
+      })
+
+      unitCost +=
+        Number(
+          product.purchasePrice ||
+            0
+        ) *
+        stockQuantityPerCopao
+    }
+
+    const doseComponent =
+      components.find(
+        (component: any) =>
+          component.role ===
+          "dose"
       )
 
-    if (!product) {
+    let extraDoseCost = 0
+
+    if (
+      qtdExtras > 0 &&
+      !doseComponent
+    ) {
       alert(
-        `Produto de estoque não encontrado: ${id}`
+        "Esse Copão não possui uma dose cadastrada para receber doses extras."
       )
       return
     }
 
     if (
-      Number(
-        product.stock || 0
-      ) <
-      Number(
-        required
-      )
+      doseComponent &&
+      qtdExtras > 0
     ) {
-      alert(
-        `Estoque insuficiente para ${product.name}.\n\nDisponível: ${product.stock}\nNecessário: ${required}`
-      )
-      return
+      const doseProduct =
+        products.find(
+          (product) =>
+            product.id ===
+            Number(
+              doseComponent.productId
+            )
+        )
+
+      if (!doseProduct) {
+        alert(
+          "Produto da dose não encontrado."
+        )
+        return
+      }
+
+      const extraDoseQuantity =
+        qtdExtras *
+        qtdCopoes
+
+      stockItems.push({
+        id:
+          doseProduct.id,
+
+        name:
+          doseProduct.name,
+
+        quantity:
+          extraDoseQuantity,
+
+        quantityPerCopao:
+          qtdExtras,
+
+        unitType:
+          "Dose",
+
+        role:
+          "dose-extra",
+      })
+
+      extraDoseCost =
+        Number(
+          doseProduct.purchasePrice ||
+            0
+        ) *
+        qtdExtras
     }
-  }
 
-  /*
-  ============================================================
-  PREÇO
-  ============================================================
-  */
+    const requiredStock: Record<
+      number,
+      number
+    > = {}
 
-  const basePrice =
-    Number(
-      selectedCopao.sale_price ||
-        0
-    )
-
-  const extraPrice =
-    Number(
-      selectedCopao.dose_extra_price ||
-        0
-    )
-
-  const unitPrice =
-    basePrice +
-    qtdExtras *
-      extraPrice
-
-  const total =
-    unitPrice *
-    qtdCopoes
-
-  const finalUnitCost =
-    unitCost +
-    extraDoseCost
-
-  const itemProfit =
-    unitPrice -
-    finalUnitCost
-
-  /*
-  ============================================================
-  NOMES DOS COMPONENTES
-  ============================================================
-  */
-
-  const componentNames =
-    selectedComponents.map(
-      (
-        component: any
-      ) => {
-        const product =
-          products.find(
-            (item) =>
-              item.id ===
-              Number(
-                component.productId
-              )
+    stockItems.forEach(
+      (item) => {
+        requiredStock[
+          item.id
+        ] =
+          (
+            requiredStock[
+              item.id
+            ] || 0
+          ) +
+          Number(
+            item.quantity || 0
           )
-
-        return product
-          ? product.name
-          : "Produto"
       }
     )
 
-  const lacreUsado =
-    selectedComponents.some(
-      (component: any) =>
-        component.role ===
-        "lacre"
-    )
+    for (
+      const [
+        id,
+        required,
+      ] of Object.entries(
+        requiredStock
+      )
+    ) {
+      const product =
+        products.find(
+          (item) =>
+            item.id ===
+            Number(id)
+        )
 
-  /*
-  ============================================================
-  ADICIONA AO CARRINHO
-  ============================================================
-  */
+      if (!product) {
+        alert(
+          `Produto de estoque não encontrado: ${id}`
+        )
+        return
+      }
 
-  setCart([
-    ...cart,
+      if (
+        Number(
+          product.stock || 0
+        ) <
+        Number(
+          required
+        )
+      ) {
+        alert(
+          `Estoque insuficiente para ${product.name}.\n\nDisponível: ${product.stock}\nNecessário: ${required}`
+        )
+        return
+      }
+    }
 
-    {
-      type:
-        "Copao",
+    const basePrice =
+      Number(
+        selectedCopao.sale_price ||
+          0
+      )
 
-      id:
-        `copao-${selectedCopao.id}-${Date.now()}`,
+    const extraPrice =
+      Number(
+        selectedCopao.dose_extra_price ||
+          0
+      )
 
-      copaoId:
-        selectedCopao.id,
+    const unitPrice =
+      basePrice +
+      qtdExtras *
+        extraPrice
 
-      name:
-        selectedCopao.name,
+    const total =
+      unitPrice *
+      qtdCopoes
 
-      displayName:
-        selectedCopao.name,
+    const finalUnitCost =
+      unitCost +
+      extraDoseCost
 
-      quantity:
-        qtdCopoes,
+    const itemProfit =
+      unitPrice -
+      finalUnitCost
 
-      saleType:
-        "Unidade",
+    const componentNames =
+      selectedComponents.map(
+        (component: any) => {
+          const product =
+            products.find(
+              (item) =>
+                item.id ===
+                Number(
+                  component.productId
+                )
+            )
 
-      stockQuantity:
-        0,
+          return product
+            ? product.name
+            : "Produto"
+        }
+      )
 
-      salePrice:
-        unitPrice,
+    const lacreUsado =
+      selectedComponents.some(
+        (component: any) =>
+          component.role ===
+          "lacre"
+      )
 
-      purchasePrice:
-        finalUnitCost,
+    setCart([
+      ...cart,
 
-      total,
+      {
+        type:
+          "Copao",
 
-      profit:
-        itemProfit *
-        qtdCopoes,
+        id:
+          `copao-${selectedCopao.id}-${Date.now()}`,
 
-      doseExtra:
-        qtdExtras,
+        copaoId:
+          selectedCopao.id,
 
-      useLacre:
-        lacreUsado,
+        name:
+          selectedCopao.name,
 
-      componentNames,
+        displayName:
+          selectedCopao.name,
 
-      components:
-        stockItems.map(
-          (item) => ({
-            ...item,
-          })
-        ),
+        quantity:
+          qtdCopoes,
 
-      stockItems,
-    },
-  ])
+        saleType:
+          "Unidade",
 
-  setSelectedCopaoId("")
-  setExtraDoses("0")
-  setCopaoQuantity("1")
-  setOptionalCopaoComponents({})
-}
+        stockQuantity:
+          0,
+
+        salePrice:
+          unitPrice,
+
+        purchasePrice:
+          finalUnitCost,
+
+        total,
+
+        profit:
+          itemProfit *
+          qtdCopoes,
+
+        doseExtra:
+          qtdExtras,
+
+        useLacre:
+          lacreUsado,
+
+        componentNames,
+
+        components:
+          stockItems.map(
+            (item) => ({
+              ...item,
+            })
+          ),
+
+        stockItems,
+      },
+    ])
+
+    setSelectedCopaoId("")
+    setSelectedGeloComponentId("")
+    setExtraDoses("0")
+    setCopaoQuantity("1")
+    setOptionalCopaoComponents({})
+  }
 
   function removeCartItem(
     index: number
@@ -1161,28 +1112,29 @@ const selectedComponents =
         ? deliveryFeeNight
         : deliveryFee
       : 0
-const discountValue =
-  Number(
-    String(discount)
-      .replace(",", ".") ||
-        0
-  )
 
-const additionValue =
-  Number(
-    String(addition)
-      .replace(",", ".") ||
+  const discountValue =
+    Number(
+      String(discount)
+        .replace(",", ".") ||
         0
-  )
+    )
 
-const finalTotal =
-  Math.max(
-    0,
-    cartTotal +
-      deliveryTotal +
-      additionValue -
-      discountValue
-  )
+  const additionValue =
+    Number(
+      String(addition)
+        .replace(",", ".") ||
+        0
+    )
+
+  const finalTotal =
+    Math.max(
+      0,
+      cartTotal +
+        deliveryTotal +
+        additionValue -
+        discountValue
+    )
 
   const cartProfit =
     cart.reduce(
@@ -1460,6 +1412,7 @@ const finalTotal =
 
           return {
             ...product,
+
             stock:
               Number(
                 product.stock || 0
@@ -1729,10 +1682,11 @@ const finalTotal =
       const total =
         finalTotal
 
-     const profit =
-  cartProfit +
-  additionValue -
-  discountValue
+      const profit =
+        cartProfit +
+        additionValue -
+        discountValue
+
       const saleProducts =
         cart.map(
           (item) => ({
@@ -1776,7 +1730,8 @@ const finalTotal =
             ) =>
               total +
               Number(
-                item.quantity || 0
+                item.quantity ||
+                  0
               ),
             0
           ),
@@ -1784,11 +1739,13 @@ const finalTotal =
         total,
 
         profit,
-        discount:
-  discountValue,
 
-addition:
-  additionValue,
+        discount:
+          discountValue,
+
+        addition:
+          additionValue,
+
         customer:
           customer.trim() ||
           null,
@@ -1852,6 +1809,7 @@ addition:
             ) {
               return {
                 ...product,
+
                 stock:
                   stocksAfterSale[
                     product.id
@@ -1891,12 +1849,12 @@ addition:
       setProductId("")
       setQuantity("")
 
-     setSelectedCopaoId("")
-setSelectedGeloComponentId("")
-setExtraDoses("0")
-setCopaoQuantity("1")
-setOptionalCopaoComponents({})
-setSaleMode("Produto")
+      setSelectedCopaoId("")
+      setSelectedGeloComponentId("")
+      setExtraDoses("0")
+      setCopaoQuantity("1")
+      setOptionalCopaoComponents({})
+      setSaleMode("Produto")
 
       if (
         payment ===
@@ -2080,17 +2038,16 @@ setSaleMode("Produto")
         Controle de vendas da ZERO GRAU
       </p>
 
-      {/* ======================================================
-          NOVA VENDA
-      ====================================================== */}
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+
         <div className="bg-white p-6 rounded-xl shadow">
+
           <h2 className="font-bold text-lg">
             🛒 Nova venda
           </h2>
 
           <div className="grid grid-cols-2 gap-2 mt-4">
+
             <button
               onClick={() =>
                 setSaleMode(
@@ -2122,6 +2079,7 @@ setSaleMode("Produto")
             >
               🥤 Copões
             </button>
+
           </div>
 
           {saleMode ===
@@ -2141,6 +2099,7 @@ setSaleMode("Produto")
               />
 
               <div className="mt-2 max-h-48 overflow-auto border rounded">
+
                 {filteredProducts.map(
                   (product) => (
                     <button
@@ -2180,6 +2139,7 @@ setSaleMode("Produto")
                     </button>
                   )
                 )}
+
               </div>
 
               {productId && (
@@ -2188,9 +2148,7 @@ setSaleMode("Produto")
                   value={
                     saleType
                   }
-                  onChange={(
-                    e
-                  ) =>
+                  onChange={(e) =>
                     setSaleType(
                       e.target.value as
                         | "Unidade"
@@ -2214,6 +2172,7 @@ setSaleMode("Produto")
                       Venda por fardo
                     </option>
                   )}
+
                 </select>
               )}
 
@@ -2245,392 +2204,503 @@ setSaleMode("Produto")
 
           {saleMode ===
             "Copao" && (
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-4">
+
               <select
-      className="border p-2 rounded w-full"
-      value={selectedCopaoId}
-     onChange={(e) => {
-  setSelectedCopaoId(e.target.value)
-  setSelectedGeloComponentId("")
-  setExtraDoses("0")
-  setCopaoQuantity("1")
-  setOptionalCopaoComponents({})
-}}
-    >
-      <option value="">
-        Selecione o Copão
-      </option>
-
-      {copoes.map((copao) => (
-        <option
-          key={copao.id}
-          value={copao.id}
-        >
-          {copao.name} — R${" "}
-          {Number(
-            copao.sale_price || 0
-          ).toFixed(2)}
-        </option>
-      ))}
-    </select>
-
-    {selectedCopao && (
-      <div className="space-y-4">
-{(() => {
-  const geloOptions =
-    copaoComponents.filter(
-      (component: any) =>
-        Number(component.copao_id) ===
-          Number(selectedCopao.id) &&
-        component.role === "gelo"
-    )
-
-  if (geloOptions.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="border rounded-xl p-4 bg-blue-50">
-
-      <label className="block text-sm font-semibold mb-2">
-        🧊 Escolha o sabor do gelo
-      </label>
-
-      <select
-        className="border p-2 rounded-lg w-full bg-white"
-        value={selectedGeloComponentId}
-        onChange={(e) =>
-          setSelectedGeloComponentId(
-            e.target.value
-          )
-        }
-      >
-        <option value="">
-          Selecione o gelo
-        </option>
-
-        {geloOptions.map(
-          (component: any) => {
-
-            const product =
-              products.find(
-                (item) =>
-                  item.id ===
-                  Number(
-                    component.productId
+                className="border p-2 rounded w-full"
+                value={
+                  selectedCopaoId
+                }
+                onChange={(e) => {
+                  setSelectedCopaoId(
+                    e.target.value
                   )
-              )
 
-            if (!product) {
-              return null
-            }
-
-            return (
-              <option
-                key={component.id}
-                value={component.id}
+                  setSelectedGeloComponentId("")
+                  setExtraDoses("0")
+                  setCopaoQuantity("1")
+                  setOptionalCopaoComponents({})
+                }}
               >
-                {product.name}
-                {product.flavor
-                  ? ` • ${product.flavor}`
-                  : ""}
-                {product.volume
-                  ? ` • ${product.volume}`
-                  : ""}
-                {" — estoque: "}
-                {Number(
-                  product.stock || 0
+                <option value="">
+                  Selecione o Copão
+                </option>
+
+                {copoes.map(
+                  (copao) => (
+                    <option
+                      key={
+                        copao.id
+                      }
+                      value={
+                        copao.id
+                      }
+                    >
+                      {copao.name} —
+                      R${" "}
+                      {Number(
+                        copao.sale_price ||
+                          0
+                      ).toFixed(
+                        2
+                      )}
+                    </option>
+                  )
                 )}
-              </option>
-            )
-          }
-        )}
-      </select>
+              </select>
 
-    </div>
-  )
-})()}
-        {copaoComponents
-          .filter(
-            (component: any) =>
-              Number(component.copao_id) ===
-              Number(selectedCopao.id)
-          )
-          
-          .map((component: any) => {
-            const product = products.find(
-              (item) =>
-                item.id ===
-                Number(component.productId)
-            )
+              {selectedCopao && (
+                <div className="space-y-4">
 
-            if (!product) {
-              return null
-            }
-            if (
-  component.role === "gelo"
-) {
-  return null
-}
-
-            const isOptional =
-              component.optional === true
-
-            const checked =
-              optionalCopaoComponents[
-                component.id
-              ] === true
-
-            return (
-              <div
-                key={component.id}
-                className="border rounded-lg p-3"
-              >
-
-                <div className="flex justify-between items-start gap-3">
-
-                  <div>
-
-                    <p className="font-semibold">
-                      {component.role === "dose"
-                        ? "🥃"
-                        : component.role === "energetico"
-                        ? "⚡"
-                        : component.role === "gelo"
-                        ? "🧊"
-                        : component.role === "copo"
-                        ? "🥤"
-                        : component.role === "lacre"
-                        ? "🔒"
-                        : "📦"}{" "}
-
-                      {product.name}
-                    </p>
-
-                    <p className="text-sm text-gray-500 mt-1">
-                      {component.quantity}{" "}
-                      {component.unit_type === "Ml"
-                        ? "ml"
-                        : component.unit_type === "Dose"
-                        ? "dose(s)"
-                        : "unidade(s)"}
-
-                      {!isOptional &&
-                        " • obrigatório"}
-                    </p>
-
-                    {product.volume && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        Embalagem:{" "}
-                        {product.volume}
-                      </p>
-                    )}
-
-                  </div>
-
-                  {isOptional ? (
-                    <label className="flex items-center gap-2 cursor-pointer">
-
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) =>
-                          setOptionalCopaoComponents(
-                            (previous) => ({
-                              ...previous,
-                              [component.id]:
-                                e.target.checked,
-                            })
+                  {(() => {
+                    const currentComponents =
+                      copaoComponents.filter(
+                        (component: any) =>
+                          Number(
+                            component.copao_id
+                          ) ===
+                          Number(
+                            selectedCopao.id
                           )
-                        }
-                      />
+                      )
 
-                      <span className="text-sm font-medium">
-                        Usar
-                      </span>
+                    if (
+                      currentComponents.length ===
+                      0
+                    ) {
+                      return (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
 
-                    </label>
-                  ) : (
-                    <span className="text-sm text-green-700 font-semibold">
-                      Incluído
-                    </span>
-                  )}
+                          <p className="text-orange-700 font-semibold">
+                            ⚠️ Esse Copão ainda não possui uma receita cadastrada.
+                          </p>
+
+                          <p className="text-sm text-orange-600 mt-1">
+                            Cadastre os componentes na página de Copões antes de vender.
+                          </p>
+
+                        </div>
+                      )
+                    }
+
+                    const geloOptions =
+                      currentComponents.filter(
+                        (component: any) =>
+                          component.role ===
+                          "gelo"
+                      )
+
+                    return (
+                      <>
+                        {geloOptions.length >
+                          0 && (
+                          <div className="border rounded-xl p-4 bg-blue-50">
+
+                            <label className="block text-sm font-semibold mb-2">
+                              🧊 Escolha o sabor do gelo
+                            </label>
+
+                            <select
+                              className="border p-2 rounded-lg w-full bg-white"
+                              value={
+                                selectedGeloComponentId
+                              }
+                              onChange={(e) =>
+                                setSelectedGeloComponentId(
+                                  e.target.value
+                                )
+                              }
+                            >
+                              <option value="">
+                                Selecione o gelo
+                              </option>
+
+                              {geloOptions.map(
+                                (
+                                  component: any
+                                ) => {
+                                  const product =
+                                    products.find(
+                                      (item) =>
+                                        item.id ===
+                                        Number(
+                                          component.productId
+                                        )
+                                    )
+
+                                  if (
+                                    !product
+                                  ) {
+                                    return null
+                                  }
+
+                                  return (
+                                    <option
+                                      key={
+                                        component.id
+                                      }
+                                      value={
+                                        component.id
+                                      }
+                                    >
+                                      {
+                                        product.name
+                                      }
+
+                                      {product.flavor
+                                        ? ` • ${product.flavor}`
+                                        : ""}
+
+                                      {product.volume
+                                        ? ` • ${product.volume}`
+                                        : ""}
+
+                                      {" — estoque: "}
+
+                                      {Number(
+                                        product.stock ||
+                                          0
+                                      )}
+                                    </option>
+                                  )
+                                }
+                              )}
+
+                            </select>
+
+                          </div>
+                        )}
+
+                        {currentComponents
+                          .filter(
+                            (component: any) =>
+                              component.role !==
+                              "gelo"
+                          )
+                          .map(
+                            (
+                              component: any
+                            ) => {
+                              const product =
+                                products.find(
+                                  (item) =>
+                                    item.id ===
+                                    Number(
+                                      component.productId
+                                    )
+                                )
+
+                              if (
+                                !product
+                              ) {
+                                return null
+                              }
+
+                              const isOptional =
+                                component.optional ===
+                                true
+
+                              const checked =
+                                optionalCopaoComponents[
+                                  component.id
+                                ] === true
+
+                              return (
+                                <div
+                                  key={
+                                    component.id
+                                  }
+                                  className="border rounded-lg p-3"
+                                >
+
+                                  <div className="flex justify-between items-start gap-3">
+
+                                    <div>
+
+                                      <p className="font-semibold">
+
+                                        {component.role ===
+                                        "dose"
+                                          ? "🥃"
+                                          : component.role ===
+                                            "energetico"
+                                          ? "⚡"
+                                          : component.role ===
+                                            "copo"
+                                          ? "🥤"
+                                          : component.role ===
+                                            "lacre"
+                                          ? "🔒"
+                                          : "📦"}{" "}
+
+                                        {
+                                          product.name
+                                        }
+
+                                      </p>
+
+                                      <p className="text-sm text-gray-500 mt-1">
+
+                                        {
+                                          component.quantity
+                                        }{" "}
+
+                                        {component.unit_type ===
+                                        "Ml"
+                                          ? "ml"
+                                          : component.unit_type ===
+                                            "Dose"
+                                          ? "dose(s)"
+                                          : "unidade(s)"}
+
+                                        {!isOptional &&
+                                          " • obrigatório"}
+
+                                      </p>
+
+                                      {product.volume && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                          Embalagem:{" "}
+                                          {
+                                            product.volume
+                                          }
+                                        </p>
+                                      )}
+
+                                    </div>
+
+                                    {isOptional ? (
+                                      <label className="flex items-center gap-2 cursor-pointer">
+
+                                        <input
+                                          type="checkbox"
+                                          checked={
+                                            checked
+                                          }
+                                          onChange={(e) =>
+                                            setOptionalCopaoComponents(
+                                              (
+                                                previous
+                                              ) => ({
+                                                ...previous,
+
+                                                [component.id]:
+                                                  e.target.checked,
+                                              })
+                                            )
+                                          }
+                                        />
+
+                                        <span className="text-sm font-medium">
+                                          Usar
+                                        </span>
+
+                                      </label>
+                                    ) : (
+                                      <span className="text-sm text-green-700 font-semibold">
+                                        Incluído
+                                      </span>
+                                    )}
+
+                                  </div>
+
+                                </div>
+                              )
+                            }
+                          )}
+
+                        {currentComponents.some(
+                          (component: any) =>
+                            component.role ===
+                            "dose"
+                        ) && (
+                          <div>
+
+                            <label className="block text-sm font-medium mb-1">
+                              Doses extras
+                            </label>
+
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={
+                                extraDoses
+                              }
+                              onChange={(e) =>
+                                setExtraDoses(
+                                  e.target.value
+                                )
+                              }
+                              className="border p-2 rounded w-full"
+                            />
+
+                            <p className="text-xs text-gray-500 mt-1">
+                              + R${" "}
+                              {Number(
+                                selectedCopao.dose_extra_price ||
+                                  0
+                              ).toFixed(
+                                2
+                              )}{" "}
+                              por dose extra.
+                            </p>
+
+                          </div>
+                        )}
+
+                        <div>
+
+                          <label className="block text-sm font-medium mb-1">
+                            Quantidade de Copões
+                          </label>
+
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={
+                              copaoQuantity
+                            }
+                            onChange={(e) =>
+                              setCopaoQuantity(
+                                e.target.value
+                              )
+                            }
+                            className="border p-2 rounded w-full"
+                          />
+
+                        </div>
+
+                        <div className="bg-gray-50 rounded-lg p-4">
+
+                          <p className="font-semibold">
+                            Resumo
+                          </p>
+
+                          {currentComponents.map(
+                            (
+                              component: any
+                            ) => {
+                              const product =
+                                products.find(
+                                  (item) =>
+                                    item.id ===
+                                    Number(
+                                      component.productId
+                                    )
+                                )
+
+                              if (
+                                !product
+                              ) {
+                                return null
+                              }
+
+                              if (
+                                component.role ===
+                                  "gelo" &&
+                                Number(
+                                  component.id
+                                ) !==
+                                  Number(
+                                    selectedGeloComponentId
+                                  )
+                              ) {
+                                return null
+                              }
+
+                              const selected =
+                                !component.optional ||
+                                optionalCopaoComponents[
+                                  component.id
+                                ] ===
+                                  true ||
+                                component.role ===
+                                  "gelo"
+
+                              if (
+                                !selected
+                              ) {
+                                return null
+                              }
+
+                              return (
+                                <p
+                                  key={
+                                    `summary-${component.id}`
+                                  }
+                                  className="text-sm mt-1"
+                                >
+                                  {product.name}:{" "}
+                                  {component.quantity}{" "}
+                                  {component.unit_type ===
+                                  "Ml"
+                                    ? "ml"
+                                    : component.unit_type ===
+                                      "Dose"
+                                    ? "dose(s)"
+                                    : "unidade(s)"}
+                                </p>
+                              )
+                            }
+                          )}
+
+                          {Number(
+                            extraDoses || 0
+                          ) > 0 && (
+                            <p className="text-sm mt-1">
+                              🥃 Doses extras:{" "}
+                              {
+                                extraDoses
+                              }
+                            </p>
+                          )}
+
+                          <p className="font-bold mt-3">
+                            Preço por Copão: R${" "}
+                            {(
+                              Number(
+                                selectedCopao.sale_price ||
+                                  0
+                              ) +
+                              Number(
+                                extraDoses ||
+                                  0
+                              ) *
+                                Number(
+                                  selectedCopao.dose_extra_price ||
+                                    0
+                                )
+                            ).toFixed(
+                              2
+                            )}
+                          </p>
+
+                        </div>
+
+                        <button
+                          onClick={
+                            addCopaoToCart
+                          }
+                          className="w-full bg-green-700 text-white px-5 py-3 rounded-lg font-bold"
+                        >
+                          Adicionar Copão ao carrinho
+                        </button>
+                      </>
+                    )
+                  })()}
 
                 </div>
+              )}
 
-              </div>
-            )
-          })}
-
-        {copaoComponents.filter(
-          (component: any) =>
-            Number(component.copao_id) ===
-            Number(selectedCopao.id)
-        ).length === 0 && (
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-
-            <p className="text-orange-700 font-semibold">
-              ⚠️ Esse Copão ainda não possui uma receita cadastrada.
-            </p>
-
-            <p className="text-sm text-orange-600 mt-1">
-              Cadastre os componentes na página de Copões antes de vender.
-            </p>
-
-          </div>
-        )}
-
-        {copaoComponents.some(
-          (component: any) =>
-            Number(component.copao_id) ===
-              Number(selectedCopao.id) &&
-            component.role === "dose"
-        ) && (
-          <div>
-
-            <label className="block text-sm font-medium mb-1">
-              Doses extras
-            </label>
-
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={extraDoses}
-              onChange={(e) =>
-                setExtraDoses(e.target.value)
-              }
-              className="border p-2 rounded w-full"
-            />
-
-            <p className="text-xs text-gray-500 mt-1">
-              + R${" "}
-              {Number(
-                selectedCopao.dose_extra_price || 0
-              ).toFixed(2)}{" "}
-              por dose extra.
-            </p>
-
-          </div>
-        )}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-1">
-            Quantidade de Copões
-          </label>
-
-          <input
-            type="number"
-            min="1"
-            step="1"
-            value={copaoQuantity}
-            onChange={(e) =>
-              setCopaoQuantity(e.target.value)
-            }
-            className="border p-2 rounded w-full"
-          />
-
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-4">
-
-          <p className="font-semibold">
-            Resumo
-          </p>
-
-         {copaoComponents
-  .filter(
-    (component: any) =>
-      Number(component.copao_id) ===
-      Number(selectedCopao.id)
-  )
-  .map((component: any) => {
-
-    const product = products.find(
-      (item) =>
-        item.id ===
-        Number(component.productId)
-    )
-
-    if (!product) {
-      return null
-    }
-
-    if (
-      component.role === "gelo" &&
-      Number(component.id) !==
-        Number(selectedGeloComponentId)
-    ) {
-      return null
-    }
-
-    const selected =
-      !component.optional ||
-      optionalCopaoComponents[
-        component.id
-      ] === true
-
-    if (!selected) {
-      return null
-    }
-
-    return (
-      <p
-        key={`summary-${component.id}`}
-        className="text-sm mt-1"
-      >
-        {product.name}:{" "}
-        {component.quantity}{" "}
-        {component.unit_type === "Ml"
-          ? "ml"
-          : component.unit_type === "Dose"
-          ? "dose(s)"
-          : "unidade(s)"}
-      </p>
-    )
-  })}
-
-          {Number(extraDoses || 0) > 0 && (
-            <p className="text-sm mt-1">
-              🥃 Doses extras:{" "}
-              {extraDoses}
-            </p>
+            </div>
           )}
 
-          <p className="font-bold mt-3">
-            Preço por Copão: R${" "}
-            {(
-              Number(
-                selectedCopao.sale_price || 0
-              ) +
-              Number(extraDoses || 0) *
-                Number(
-                  selectedCopao.dose_extra_price || 0
-                )
-            ).toFixed(2)}
-          </p>
-
         </div>
-
-        <button
-          onClick={addCopaoToCart}
-          className="w-full bg-green-700 text-white px-5 py-3 rounded-lg font-bold"
-        >
-          Adicionar Copão ao carrinho
-        </button>
-
-      </div>
-    )}
-     </div>
-)}
-        </div>
-
-        {/* ================================================== */}
-        {/* CARRINHO */}
-        {/* ================================================== */}
 
         <div className="bg-white p-6 rounded-xl shadow">
+
           <h2 className="font-bold text-lg">
             🛒 Carrinho
           </h2>
@@ -2642,6 +2712,7 @@ setSaleMode("Produto")
             </p>
           ) : (
             <div className="mt-4 space-y-3">
+
               {cart.map(
                 (
                   item,
@@ -2651,8 +2722,11 @@ setSaleMode("Produto")
                     key={`${item.id}-${index}`}
                     className="border rounded-lg p-3"
                   >
+
                     <div className="flex justify-between gap-4">
+
                       <div>
+
                         <p className="font-bold">
                           {item.displayName ||
                             item.name}
@@ -2671,31 +2745,38 @@ setSaleMode("Produto")
 
                         {item.type ===
                           "Copao" && (
-                          <p className="text-sm text-gray-500">
-                          {item.componentNames &&
-  item.componentNames.length >
-    0 && (
-    <p className="text-sm text-gray-500">
-      {item.componentNames.join(
-        " • "
-      )}
+                          <div className="text-sm text-gray-500 mt-1">
 
-      {item.useLacre
-        ? " • com lacre"
-        : ""}
-    </p>
-  )}
+                            {item.componentNames &&
+                              item.componentNames.length >
+                                0 && (
+                                <p>
+                                  {item.componentNames.join(
+                                    " • "
+                                  )}
+
+                                  {item.useLacre
+                                    ? " • com lacre"
+                                    : ""}
+                                </p>
+                              )}
+
                             {Number(
                               item.doseExtra ||
                                 0
-                            ) > 0
-                              ? ` • +${item.doseExtra} dose(s)`
-                              : ""}
-                          </p>
+                            ) > 0 && (
+                              <p>
+                                +{item.doseExtra} dose(s)
+                              </p>
+                            )}
+
+                          </div>
                         )}
+
                       </div>
 
                       <div className="text-right">
+
                         <p className="font-bold">
                           R${" "}
                           {Number(
@@ -2716,16 +2797,22 @@ setSaleMode("Produto")
                         >
                           Remover
                         </button>
+
                       </div>
+
                     </div>
+
                   </div>
                 )
               )}
+
             </div>
           )}
 
           <div className="border-t mt-5 pt-4">
+
             <label className="flex items-center gap-2 cursor-pointer">
+
               <input
                 type="checkbox"
                 checked={
@@ -2750,10 +2837,12 @@ setSaleMode("Produto")
               <span className="font-medium">
                 🚚 Adicionar frete
               </span>
+
             </label>
 
             {hasDelivery && (
               <div className="mt-3">
+
                 <select
                   className="border p-2 rounded w-full"
                   value={
@@ -2767,6 +2856,7 @@ setSaleMode("Produto")
                     )
                   }
                 >
+
                   <option value="Normal">
                     🚚 Frete normal — R${" "}
                     {deliveryFee.toFixed(
@@ -2780,6 +2870,7 @@ setSaleMode("Produto")
                       2
                     )}
                   </option>
+
                 </select>
 
                 <p className="text-gray-600 mt-2">
@@ -2788,6 +2879,7 @@ setSaleMode("Produto")
                     2
                   )}
                 </p>
+
               </div>
             )}
 
@@ -2798,63 +2890,77 @@ setSaleMode("Produto")
               )}
             </p>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
 
-  <div>
-    <label className="block text-sm text-gray-600 mb-1">
-      Desconto
-    </label>
+              <div>
 
-    <input
-      className="border p-2 rounded w-full"
-      type="number"
-      min="0"
-      step="0.01"
-      placeholder="Ex.: 5,00"
-      value={discount}
-      onChange={(e) =>
-        setDiscount(
-          e.target.value
-        )
-      }
-    />
-  </div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Desconto
+                </label>
 
-  <div>
-    <label className="block text-sm text-gray-600 mb-1">
-      Acréscimo
-    </label>
+                <input
+                  className="border p-2 rounded w-full"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ex.: 5,00"
+                  value={
+                    discount
+                  }
+                  onChange={(e) =>
+                    setDiscount(
+                      e.target.value
+                    )
+                  }
+                />
 
-    <input
-      className="border p-2 rounded w-full"
-      type="number"
-      min="0"
-      step="0.01"
-      placeholder="Ex.: 5,00"
-      value={addition}
-      onChange={(e) =>
-        setAddition(
-          e.target.value
-        )
-      }
-    />
-  </div>
+              </div>
 
-</div>
+              <div>
 
-{discountValue > 0 && (
-  <p className="text-red-600 mt-2">
-    Desconto: -R${" "}
-    {discountValue.toFixed(2)}
-  </p>
-)}
+                <label className="block text-sm text-gray-600 mb-1">
+                  Acréscimo
+                </label>
 
-{additionValue > 0 && (
-  <p className="text-green-600 mt-2">
-    Acréscimo: +R${" "}
-    {additionValue.toFixed(2)}
-  </p>
-)}
+                <input
+                  className="border p-2 rounded w-full"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ex.: 5,00"
+                  value={
+                    addition
+                  }
+                  onChange={(e) =>
+                    setAddition(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+            </div>
+
+            {discountValue >
+              0 && (
+              <p className="text-red-600 mt-2">
+                Desconto: -R${" "}
+                {discountValue.toFixed(
+                  2
+                )}
+              </p>
+            )}
+
+            {additionValue >
+              0 && (
+              <p className="text-green-600 mt-2">
+                Acréscimo: +R${" "}
+                {additionValue.toFixed(
+                  2
+                )}
+              </p>
+            )}
 
             <p className="font-bold text-xl text-blue-800 mt-2">
               Total: R${" "}
@@ -2869,6 +2975,7 @@ setSaleMode("Produto")
                 2
               )}
             </p>
+
           </div>
 
           <input
@@ -2899,16 +3006,14 @@ setSaleMode("Produto")
                 e.target.value !==
                 "Dinheiro"
               ) {
-                setCashGiven(
-                  ""
-                )
-
+                setCashGiven("")
                 setChangeMethod(
                   "Dinheiro"
                 )
               }
             }}
           >
+
             <option value="">
               Forma de pagamento
             </option>
@@ -2932,11 +3037,13 @@ setSaleMode("Produto")
             <option value="Fiado">
               Fiado
             </option>
+
           </select>
 
           {payment ===
             "Dinheiro" && (
             <div className="mt-4 border rounded-lg p-4 bg-gray-50">
+
               <p className="font-semibold">
                 💵 Pagamento em dinheiro
               </p>
@@ -2966,6 +3073,7 @@ setSaleMode("Produto")
                 cashGivenValue >=
                   finalTotal && (
                   <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
+
                     <p className="text-sm text-gray-500">
                       Troco
                     </p>
@@ -2976,6 +3084,7 @@ setSaleMode("Produto")
                         2
                       )}
                     </p>
+
                   </div>
                 )}
 
@@ -2991,6 +3100,7 @@ setSaleMode("Produto")
               {changeAmount >
                 0 && (
                 <div className="mt-4">
+
                   <p className="font-medium mb-2">
                     O troco será dado em:
                   </p>
@@ -3000,9 +3110,7 @@ setSaleMode("Produto")
                     value={
                       changeMethod
                     }
-                    onChange={(
-                      e
-                    ) =>
+                    onChange={(e) =>
                       setChangeMethod(
                         e.target
                           .value as
@@ -3011,6 +3119,7 @@ setSaleMode("Produto")
                       )
                     }
                   >
+
                     <option value="Dinheiro">
                       💵 Dinheiro
                     </option>
@@ -3018,9 +3127,12 @@ setSaleMode("Produto")
                     <option value="Pix">
                       📱 Pix
                     </option>
+
                   </select>
+
                 </div>
               )}
+
             </div>
           )}
 
@@ -3037,7 +3149,9 @@ setSaleMode("Produto")
               ? "Registrando venda..."
               : "Finalizar venda"}
           </button>
+
         </div>
+
       </div>
 
       {/* ================================================== */}
@@ -3045,11 +3159,13 @@ setSaleMode("Produto")
       {/* ================================================== */}
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
         <h2 className="font-bold text-lg">
           🔎 Pesquisar vendas
         </h2>
 
         <div className="flex flex-wrap gap-4 mt-4">
+
           <input
             type="date"
             className="border p-2 rounded"
@@ -3085,7 +3201,9 @@ setSaleMode("Produto")
           >
             Limpar
           </button>
+
         </div>
+
       </div>
 
       {/* ================================================== */}
@@ -3093,7 +3211,9 @@ setSaleMode("Produto")
       {/* ================================================== */}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+
         <div className="bg-white p-6 rounded-xl shadow">
+
           <h2 className="text-gray-500">
             💰 Faturamento
           </h2>
@@ -3104,9 +3224,11 @@ setSaleMode("Produto")
               2
             )}
           </p>
+
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
+
           <h2 className="text-gray-500">
             📈 Lucro
           </h2>
@@ -3117,9 +3239,11 @@ setSaleMode("Produto")
               2
             )}
           </p>
+
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
+
           <h2 className="text-gray-500">
             🚚 Fretes
           </h2>
@@ -3130,18 +3254,21 @@ setSaleMode("Produto")
               2
             )}
           </p>
+
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
+
           <h2 className="text-gray-500">
             🛒 Quantidade vendida
           </h2>
 
           <p className="text-2xl font-bold mt-2">
-            {periodQuantity}{" "}
-            un
+            {periodQuantity} un
           </p>
+
         </div>
+
       </div>
 
       {/* ================================================== */}
@@ -3149,6 +3276,7 @@ setSaleMode("Produto")
       {/* ================================================== */}
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow">
+
         <h2 className="font-bold text-lg">
           Histórico de vendas
         </h2>
@@ -3159,10 +3287,13 @@ setSaleMode("Produto")
         </p>
 
         <div className="mt-4 space-y-3">
+
           {filteredSales.map(
             (sale) => (
               <button
-                key={sale.id}
+                key={
+                  sale.id
+                }
                 onClick={() =>
                   setSelectedSale(
                     sale
@@ -3170,8 +3301,11 @@ setSaleMode("Produto")
                 }
                 className="w-full text-left border rounded-lg p-4 hover:bg-gray-50 transition"
               >
+
                 <div className="flex justify-between gap-4">
+
                   <div>
+
                     <p className="font-bold">
                       {sale.product}
                     </p>
@@ -3206,9 +3340,11 @@ setSaleMode("Produto")
                       Status:{" "}
                       {sale.status}
                     </p>
+
                   </div>
 
                   <div className="text-right">
+
                     <p className="font-bold">
                       R${" "}
                       {Number(
@@ -3253,8 +3389,11 @@ setSaleMode("Produto")
                     <p className="text-blue-700 text-sm mt-2">
                       Ver detalhes →
                     </p>
+
                   </div>
+
                 </div>
+
               </button>
             )
           )}
@@ -3265,7 +3404,9 @@ setSaleMode("Produto")
               Nenhuma venda encontrada.
             </p>
           )}
+
         </div>
+
       </div>
 
       {/* ================================================== */}
@@ -3274,9 +3415,13 @@ setSaleMode("Produto")
 
       {selectedSale && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
+
             <div className="p-6 border-b flex justify-between items-start gap-4">
+
               <div>
+
                 <h2 className="text-xl font-bold">
                   Detalhes da venda
                 </h2>
@@ -3287,6 +3432,7 @@ setSaleMode("Produto")
                     selectedSale.date
                   )}
                 </p>
+
               </div>
 
               <button
@@ -3299,11 +3445,15 @@ setSaleMode("Produto")
               >
                 ✕
               </button>
+
             </div>
 
             <div className="p-6">
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+
                 <div className="bg-gray-50 rounded-lg p-4">
+
                   <p className="text-sm text-gray-500">
                     Cliente
                   </p>
@@ -3312,9 +3462,11 @@ setSaleMode("Produto")
                     {selectedSale.customer ||
                       "Cliente não informado"}
                   </p>
+
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4">
+
                   <p className="text-sm text-gray-500">
                     Pagamento
                   </p>
@@ -3322,9 +3474,11 @@ setSaleMode("Produto")
                   <p className="font-semibold">
                     {selectedSale.payment}
                   </p>
+
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4">
+
                   <p className="text-sm text-gray-500">
                     Status
                   </p>
@@ -3339,9 +3493,11 @@ setSaleMode("Produto")
                   >
                     {selectedSale.status}
                   </p>
+
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4">
+
                   <p className="text-sm text-gray-500">
                     Data e horário
                   </p>
@@ -3351,7 +3507,9 @@ setSaleMode("Produto")
                       selectedSale.date
                     )}
                   </p>
+
                 </div>
+
               </div>
 
               <h3 className="font-bold text-lg mb-3">
@@ -3359,14 +3517,16 @@ setSaleMode("Produto")
               </h3>
 
               <div className="space-y-3">
+
                 {selectedSale.products &&
-                selectedSale.products
-                  .length > 0 ? (
+                selectedSale.products.length >
+                  0 ? (
                   selectedSale.products.map(
                     (
                       item: any,
                       index: number
                     ) => {
+
                       if (
                         item.type ===
                         "Copao"
@@ -3376,8 +3536,11 @@ setSaleMode("Produto")
                             key={`${item.id}-${index}`}
                             className="border rounded-xl p-4"
                           >
+
                             <div className="flex justify-between gap-4">
+
                               <div>
+
                                 <p className="font-bold text-lg">
                                   🥤{" "}
                                   {
@@ -3392,25 +3555,25 @@ setSaleMode("Produto")
                                   Copão(s)
                                 </p>
 
-                               {Array.isArray(
-  item.componentNames
-) &&
-  item.componentNames.length >
-    0 && (
-    <p className="text-gray-500 mt-1">
-      Componentes:{" "}
-      {item.componentNames.join(
-        " • "
-      )}
-    </p>
-  )}
+                                {Array.isArray(
+                                  item.componentNames
+                                ) &&
+                                  item.componentNames.length >
+                                    0 && (
+                                    <p className="text-gray-500 mt-1">
+                                      Componentes:{" "}
+                                      {item.componentNames.join(
+                                        " • "
+                                      )}
+                                    </p>
+                                  )}
 
-<p className="text-gray-500">
-  Lacre:{" "}
-  {item.useLacre
-    ? "Sim"
-    : "Não"}
-</p>
+                                <p className="text-gray-500">
+                                  Lacre:{" "}
+                                  {item.useLacre
+                                    ? "Sim"
+                                    : "Não"}
+                                </p>
 
                                 <p className="text-gray-500">
                                   Doses extras:{" "}
@@ -3418,9 +3581,11 @@ setSaleMode("Produto")
                                     item.doseExtra
                                   }
                                 </p>
+
                               </div>
 
                               <div className="text-right">
+
                                 <p className="font-bold">
                                   R${" "}
                                   {Number(
@@ -3430,15 +3595,19 @@ setSaleMode("Produto")
                                     2
                                   )}
                                 </p>
+
                               </div>
+
                             </div>
 
                             <div className="mt-4 border-t pt-4">
+
                               <p className="font-semibold">
                                 Componentes consumidos
                               </p>
 
                               <div className="mt-2 space-y-1">
+
                                 {(
                                   item.stockItems ||
                                   []
@@ -3464,11 +3633,15 @@ setSaleMode("Produto")
                                     </p>
                                   )
                                 )}
+
                               </div>
+
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+
                               <div className="bg-gray-50 rounded-lg p-3">
+
                                 <p className="text-xs text-gray-500">
                                   Preço
                                 </p>
@@ -3482,9 +3655,11 @@ setSaleMode("Produto")
                                     2
                                   )}
                                 </p>
+
                               </div>
 
                               <div className="bg-gray-50 rounded-lg p-3">
+
                                 <p className="text-xs text-gray-500">
                                   Custo
                                 </p>
@@ -3498,9 +3673,11 @@ setSaleMode("Produto")
                                     2
                                   )}
                                 </p>
+
                               </div>
 
                               <div className="bg-green-50 rounded-lg p-3">
+
                                 <p className="text-xs text-gray-500">
                                   Lucro
                                 </p>
@@ -3514,8 +3691,11 @@ setSaleMode("Produto")
                                     2
                                   )}
                                 </p>
+
                               </div>
+
                             </div>
+
                           </div>
                         )
                       }
@@ -3557,8 +3737,11 @@ setSaleMode("Produto")
                           key={`${item.id}-${item.saleType}-${index}`}
                           className="border rounded-xl p-4"
                         >
+
                           <div className="flex justify-between gap-4">
+
                             <div>
+
                               <p className="font-bold">
                                 {item.displayName ||
                                   item.name}
@@ -3573,20 +3756,26 @@ setSaleMode("Produto")
                                   ? "fardo(s)"
                                   : "unidade(s)"}
                               </p>
+
                             </div>
 
                             <div className="text-right">
+
                               <p className="font-bold">
                                 R${" "}
                                 {itemTotal.toFixed(
                                   2
                                 )}
                               </p>
+
                             </div>
+
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+
                             <div className="bg-gray-50 rounded-lg p-3">
+
                               <p className="text-xs text-gray-500">
                                 Preço de venda
                               </p>
@@ -3597,9 +3786,11 @@ setSaleMode("Produto")
                                   2
                                 )}
                               </p>
+
                             </div>
 
                             <div className="bg-gray-50 rounded-lg p-3">
+
                               <p className="text-xs text-gray-500">
                                 Custo
                               </p>
@@ -3610,9 +3801,11 @@ setSaleMode("Produto")
                                   2
                                 )}
                               </p>
+
                             </div>
 
                             <div className="bg-green-50 rounded-lg p-3">
+
                               <p className="text-xs text-gray-500">
                                 Lucro deste produto
                               </p>
@@ -3623,8 +3816,11 @@ setSaleMode("Produto")
                                   2
                                 )}
                               </p>
+
                             </div>
+
                           </div>
+
                         </div>
                       )
                     }
@@ -3634,10 +3830,13 @@ setSaleMode("Produto")
                     Os detalhes dos produtos não foram salvos nesta venda.
                   </p>
                 )}
+
               </div>
 
               <div className="border-t mt-6 pt-5">
+
                 <div className="flex justify-between text-gray-600">
+
                   <span>
                     Subtotal
                   </span>
@@ -3657,48 +3856,61 @@ setSaleMode("Produto")
                       2
                     )}
                   </span>
+
                 </div>
-{Number(
-  selectedSale.addition || 0
-) > 0 && (
-  <div className="flex justify-between text-green-600 mt-2">
-    <span>
-      Acréscimo
-    </span>
 
-    <span>
-      + R${" "}
-      {Number(
-        selectedSale.addition || 0
-      ).toFixed(2)}
-    </span>
-  </div>
-)}
-{Number(
-  selectedSale.discount ||
-    0
-) > 0 && (
-  <div className="flex justify-between text-red-600 mt-2">
-    <span>
-      Desconto
-    </span>
+                {Number(
+                  selectedSale.addition ||
+                    0
+                ) > 0 && (
+                  <div className="flex justify-between text-green-600 mt-2">
 
-    <span>
-      - R${" "}
-      {Number(
-        selectedSale.discount ||
-          0
-      ).toFixed(
-        2
-      )}
-    </span>
-  </div>
-)}
+                    <span>
+                      Acréscimo
+                    </span>
+
+                    <span>
+                      + R${" "}
+                      {Number(
+                        selectedSale.addition ||
+                          0
+                      ).toFixed(
+                        2
+                      )}
+                    </span>
+
+                  </div>
+                )}
+
+                {Number(
+                  selectedSale.discount ||
+                    0
+                ) > 0 && (
+                  <div className="flex justify-between text-red-600 mt-2">
+
+                    <span>
+                      Desconto
+                    </span>
+
+                    <span>
+                      - R${" "}
+                      {Number(
+                        selectedSale.discount ||
+                          0
+                      ).toFixed(
+                        2
+                      )}
+                    </span>
+
+                  </div>
+                )}
+
                 {Number(
                   selectedSale.delivery_fee ||
                     0
                 ) > 0 && (
                   <div className="flex justify-between text-gray-600 mt-2">
+
                     <span>
                       🚚 Frete
                     </span>
@@ -3711,6 +3923,7 @@ setSaleMode("Produto")
                         2
                       )}
                     </span>
+
                   </div>
                 )}
 
@@ -3719,6 +3932,7 @@ setSaleMode("Produto")
                     0
                 ) > 0 && (
                   <div className="flex justify-between text-gray-600 mt-2">
+
                     <span>
                       Troco
                     </span>
@@ -3735,10 +3949,12 @@ setSaleMode("Produto")
                         ? "(Pix)"
                         : "(Dinheiro)"}
                     </span>
+
                   </div>
                 )}
 
                 <div className="flex justify-between font-bold text-xl mt-4">
+
                   <span>
                     Total
                   </span>
@@ -3752,9 +3968,11 @@ setSaleMode("Produto")
                       2
                     )}
                   </span>
+
                 </div>
 
                 <div className="flex justify-between text-green-700 font-bold mt-2">
+
                   <span>
                     Lucro da venda
                   </span>
@@ -3768,10 +3986,13 @@ setSaleMode("Produto")
                       2
                     )}
                   </span>
+
                 </div>
+
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
+
                 <button
                   onClick={() =>
                     setSelectedSale(
@@ -3793,9 +4014,13 @@ setSaleMode("Produto")
                 >
                   🗑 Excluir venda
                 </button>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
       )}
     </div>
