@@ -59,6 +59,8 @@ function Caixa() {
 
   const [loadingStockConference, setLoadingStockConference] =
     useState(false)
+    const [manualStockConference, setManualStockConference] =
+  useState(false)
 
   /*
   ============================================================
@@ -1492,7 +1494,249 @@ const totalFretes =
           ),
         0
       )
+async function iniciarConferenciaManual() {
+  setLoadingStockConference(true)
 
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select(
+      "id, name, flavor, volume, stock"
+    )
+    .order("name", {
+      ascending: true,
+    })
+
+  if (error) {
+    console.error(
+      "ERRO AO CARREGAR ESTOQUE PARA CONFERÊNCIA MANUAL:",
+      error
+    )
+
+    alert(
+      `Não foi possível carregar o estoque.\n\n${error.message}`
+    )
+
+    setLoadingStockConference(false)
+    return
+  }
+
+  if (!data || data.length === 0) {
+    alert(
+      "Nenhum produto cadastrado para conferir."
+    )
+
+    setLoadingStockConference(false)
+    return
+  }
+
+  const initialCountedStock: Record<number, string> = {}
+
+  data.forEach((product: any) => {
+    initialCountedStock[product.id] = ""
+  })
+
+  setStockProducts(data)
+  setCountedStock(initialCountedStock)
+
+  setManualStockConference(true)
+  setLoadingStockConference(false)
+  setShowStockConference(true)
+}
+async function confirmarConferenciaManual() {
+  if (stockProducts.length === 0) {
+    alert(
+      "Nenhum produto foi carregado."
+    )
+    return
+  }
+
+  for (const product of stockProducts) {
+    const value =
+      countedStock[product.id]
+
+    if (
+      value === undefined ||
+      value === ""
+    ) {
+      alert(
+        `Informe a quantidade contada de:\n${product.name}`
+      )
+      return
+    }
+
+    const quantidade = Number(
+      String(value).replace(",", ".")
+    )
+
+    if (
+      Number.isNaN(quantidade) ||
+      quantidade < 0
+    ) {
+      alert(
+        `Quantidade inválida para:\n${product.name}`
+      )
+      return
+    }
+  }
+
+  setOpeningStock(true)
+
+  try {
+    for (const product of stockProducts) {
+      const estoqueAnterior =
+        Number(product.stock || 0)
+
+      const estoqueContado =
+        Number(
+          String(
+            countedStock[product.id]
+          ).replace(",", ".")
+        )
+
+      const diferenca =
+        estoqueContado -
+        estoqueAnterior
+
+      /*
+      ================================================
+      ATUALIZA ESTOQUE
+      ================================================
+      */
+
+      const {
+        error: stockError,
+      } = await supabase
+        .from("products")
+        .update({
+          stock: estoqueContado,
+        })
+        .eq("id", product.id)
+
+      if (stockError) {
+        throw new Error(
+          `Erro ao atualizar ${product.name}: ${stockError.message}`
+        )
+      }
+
+      /*
+      ================================================
+      SALVA CONFERÊNCIA
+      ================================================
+      */
+
+      const {
+        error: conferenceError,
+      } = await supabase
+        .from("stock_conferences")
+        .insert({
+          cash_register_id:
+            cashRegister?.id || null,
+
+          product_id:
+            product.id,
+
+          product_name:
+            product.name,
+
+          system_stock:
+            estoqueAnterior,
+
+          counted_stock:
+            estoqueContado,
+
+          difference:
+            diferenca,
+
+          created_at:
+            new Date().toISOString(),
+        })
+
+      if (conferenceError) {
+        throw new Error(
+          `Erro ao salvar conferência de ${product.name}: ${conferenceError.message}`
+        )
+      }
+
+      /*
+      ================================================
+      REGISTRA MOVIMENTAÇÃO SE HOUVE DIFERENÇA
+      ================================================
+      */
+
+      if (diferenca !== 0) {
+        const {
+          error: movementError,
+        } = await supabase
+          .from("stock_movements")
+          .insert({
+            product_id:
+              product.id,
+
+            product_name:
+              product.name,
+
+            type:
+              diferenca > 0
+                ? "Entrada"
+                : "Saída",
+
+            quantity:
+              Math.abs(diferenca),
+
+            previous_stock:
+              estoqueAnterior,
+
+            current_stock:
+              estoqueContado,
+
+            date:
+              new Date().toISOString(),
+
+            observation:
+              `Conferência manual de estoque${
+                cashRegister
+                  ? ` no caixa ${cashRegister.id}`
+                  : ""
+              }`,
+          })
+
+        if (movementError) {
+          throw new Error(
+            `Erro ao registrar movimentação de ${product.name}: ${movementError.message}`
+          )
+        }
+      }
+    }
+
+    alert(
+      "Conferência de estoque realizada com sucesso!"
+    )
+
+    setShowStockConference(false)
+    setManualStockConference(false)
+    setStockProducts([])
+    setCountedStock({})
+
+    await loadData()
+    await loadStockConferenceHistory()
+
+  } catch (error: any) {
+    console.error(
+      "ERRO NA CONFERÊNCIA MANUAL:",
+      error
+    )
+
+    alert(
+      error?.message ||
+      "Não foi possível salvar a conferência."
+    )
+  } finally {
+    setOpeningStock(false)
+  }
+}
   /*
   ============================================================
   PREPARA CONFERÊNCIA DE ESTOQUE
@@ -1836,14 +2080,19 @@ const totalFretes =
             new Date().toISOString(),
         })
 
-      if (
-        conferenceError
-      ) {
-        console.error(
-          "ERRO AO SALVAR CONFERÊNCIA:",
-          conferenceError
-        )
-      }
+     if (conferenceError) {
+  console.error(
+    "ERRO AO SALVAR CONFERÊNCIA:",
+    conferenceError
+  )
+
+  alert(
+    `Erro ao salvar a conferência de ${product.name}:\n\n${conferenceError.message}`
+  )
+
+  setOpeningStock(false)
+  return
+}
 
       /*
       ------------------------------------------------------------
@@ -3198,7 +3447,18 @@ const totalFretes =
             ? "✕ Fechar histórico de conferências"
             : "📦 Histórico de conferências"}
         </button>
-
+<button
+  onClick={iniciarConferenciaManual}
+  disabled={
+    loadingStockConference ||
+    openingStock
+  }
+  className="bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50"
+>
+  {loadingStockConference
+    ? "Carregando..."
+    : "📦 Conferir estoque"}
+</button>
         <button
           onClick={() =>
             setShowOutflowModal(
@@ -4807,19 +5067,23 @@ const totalFretes =
               </button>
 
               <button
-                onClick={
-                  confirmarConferenciaEAbrir
-                }
-                disabled={
-                  openingStock ||
-                  loadingStockConference
-                }
-                className="bg-green-700 text-white px-5 py-2 rounded-lg font-bold disabled:opacity-50"
-              >
-                {openingStock
-                  ? "Abrindo caixa..."
-                  : "Confirmar conferência e abrir"}
-              </button>
+  onClick={
+    manualStockConference
+      ? confirmarConferenciaManual
+      : confirmarConferenciaEAbrir
+  }
+  disabled={
+    openingStock ||
+    loadingStockConference
+  }
+  className="bg-green-700 text-white px-5 py-2 rounded-lg font-bold disabled:opacity-50"
+>
+  {openingStock
+    ? "Salvando..."
+    : manualStockConference
+    ? "Confirmar conferência"
+    : "Confirmar conferência e abrir"}
+</button>
 
             </div>
 

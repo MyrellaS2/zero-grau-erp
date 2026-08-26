@@ -360,7 +360,52 @@ function Vendas() {
       }
     ).format(date)
   }
+  function getCustoProdutos(sale: any) {
+    if (!Array.isArray(sale.products)) {
+      return 0
+    }
 
+    return sale.products.reduce(
+      (total: number, item: any) => {
+        const quantity =
+          Number(item.quantity || 0)
+
+        const purchasePrice =
+          Number(item.purchasePrice || 0)
+
+        return (
+          total +
+          quantity * purchasePrice
+        )
+      },
+      0
+    )
+  }
+
+  function getValorRecebido(sale: any) {
+    if (sale.payment !== "Fiado") {
+      return Number(sale.total || 0)
+    }
+
+    return (
+      Number(sale.received_total || 0) +
+      Number(sale.delivery_fee || 0)
+    )
+  }
+
+  function getLucro(sale: any) {
+    if (sale.payment !== "Fiado") {
+      return Number(sale.profit || 0)
+    }
+
+    const custo =
+      getCustoProdutos(sale)
+
+    const valorProdutos =
+      Number(sale.received_total || 0)
+
+    return valorProdutos - custo
+  }
   function addToCart() {
     const product =
       products.find(
@@ -1947,33 +1992,25 @@ function Vendas() {
         "Pago"
     )
 
-  const periodTotal =
+   const periodTotal =
     paidSales.reduce(
       (
         total,
         sale
       ) =>
         total +
-        Number(
-          sale.total || 0
-        ) -
-        Number(
-          sale.delivery_fee ||
-            0
-        ),
+        getValorRecebido(sale),
       0
     )
 
-  const periodProfit =
+   const periodProfit =
     paidSales.reduce(
       (
         total,
         sale
       ) =>
         total +
-        Number(
-          sale.profit || 0
-        ),
+        getLucro(sale),
       0
     )
 
@@ -1991,20 +2028,21 @@ function Vendas() {
       0
     )
 
-  const periodQuantity =
-    paidSales.reduce(
+    const periodQuantity =
+    filteredSales.reduce(
       (
         total,
         sale
       ) => {
         if (
-          !sale.products
+          !Array.isArray(
+            sale.products
+          )
         ) {
           return (
             total +
             Number(
-              sale.quantity ||
-                0
+              sale.quantity || 0
             )
           )
         }
@@ -2018,8 +2056,7 @@ function Vendas() {
             ) =>
               sum +
               Number(
-                item.quantity ||
-                  0
+                item.quantity || 0
               ),
             0
           )
