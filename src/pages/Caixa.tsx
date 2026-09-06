@@ -1122,13 +1122,7 @@ const totalFretes =
       getDadosFinanceiros(sale).lucro,
     0
   )
-  const custoProdutosTotal =
-  recebimentosDoCaixa.reduce(
-    (total, sale) =>
-      total +
-      getCustoProdutos(sale),
-    0
-  )
+  
 
   /*
   ============================================================
