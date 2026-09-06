@@ -908,71 +908,50 @@ function Caixa() {
   ============================================================
   */
 
-  const getValorRecebido = (
-    sale: any
-  ) => {
-    const valorProdutos =
-      Number(
-        sale.total || 0
-      ) -
-      Number(
-        sale.delivery_fee || 0
-      )
+ const getValorRecebido = (
+  sale: any
+) => {
+  const valorProdutos =
+    Number(
+      sale.total || 0
+    ) -
+    Number(
+      sale.delivery_fee || 0
+    )
 
+  if (
+    sale.payment ===
+    "Fiado"
+  ) {
     if (
-      sale.payment ===
-      "Fiado"
+      sale.received_total !==
+        null &&
+      sale.received_total !==
+        undefined
     ) {
-      if (
-        sale.received_total !==
-          null &&
-        sale.received_total !==
-          undefined
-      ) {
-        return Number(
-          sale.received_total
-        )
-      }
-
-      return Math.max(
-        valorProdutos -
-          Number(
-            sale.discount || 0
-          ),
-        0
+      return Number(
+        sale.received_total
       )
     }
 
-    if (
-      sale.payment ===
-      "Dinheiro"
-    ) {
-      if (
-        sale.amount_received !==
-          null &&
-        sale.amount_received !==
-          undefined &&
+    return Math.max(
+      valorProdutos -
         Number(
-          sale.amount_received
-        ) > 0
-      ) {
-        return (
-          Number(
-            sale.amount_received
-          ) -
-          Number(
-            sale.delivery_fee ||
-              0
-          )
-        )
-      }
+          sale.discount || 0
+        ),
+      0
+    )
+  }
 
-      return valorProdutos
-    }
-
+  if (
+    sale.payment ===
+    "Dinheiro"
+  ) {
     return valorProdutos
   }
 
+  return valorProdutos
+}
   /*
   ============================================================
   LUCRO
@@ -1150,18 +1129,10 @@ const totalFretes =
   ============================================================
   */
 
-  const totalRecebidoPeriodo =
-    recebimentosDoCaixa.reduce(
-      (
-        total,
-        sale
-      ) =>
-        total +
-        getValorRecebidoBruto(
-          sale
-        ),
-      0
-    )
+ const totalRecebidoPeriodo =
+  recebido +
+  totalFretes +
+  lucroTotal
 
   /*
   ============================================================
@@ -1198,29 +1169,41 @@ const totalFretes =
   */
 
   const dinheiroVendas =
-    recebimentosDoCaixa
-      .filter(
-        (sale) =>
-          sale.payment ===
-            "Dinheiro" ||
-          (
-            sale.payment ===
-              "Fiado" &&
-            sale.received_payment ===
-              "Dinheiro"
-          )
-      )
-      .reduce(
+  recebimentosDoCaixa
+    .filter(
+      (sale) =>
+        sale.payment === "Dinheiro" ||
         (
-          total,
-          sale
-        ) =>
+          sale.payment === "Fiado" &&
+          sale.received_payment === "Dinheiro"
+        )
+    )
+    .reduce(
+      (
+        total,
+        sale
+      ) => {
+        if (sale.payment === "Dinheiro") {
+          return (
+            total +
+            Number(
+              sale.amount_received || 0
+            )
+          )
+        }
+
+        return (
           total +
-          getValorRecebidoBruto(
-            sale
-          ),
-        0
-      )
+          Number(
+            sale.received_total || 0
+          ) +
+          Number(
+            sale.delivery_fee || 0
+          )
+        )
+      },
+      0
+    )
 
   /*
   ============================================================
