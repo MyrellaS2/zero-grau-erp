@@ -911,46 +911,7 @@ function Caixa() {
  const getValorRecebido = (
   sale: any
 ) => {
-  const valorProdutos =
-    Number(
-      sale.total || 0
-    ) -
-    Number(
-      sale.delivery_fee || 0
-    )
-
-  if (
-    sale.payment ===
-    "Fiado"
-  ) {
-    if (
-      sale.received_total !==
-        null &&
-      sale.received_total !==
-        undefined
-    ) {
-      return Number(
-        sale.received_total
-      )
-    }
-
-    return Math.max(
-      valorProdutos -
-        Number(
-          sale.discount || 0
-        ),
-      0
-    )
-  }
-
-  if (
-    sale.payment ===
-    "Dinheiro"
-  ) {
-    return valorProdutos
-  }
-
-  return valorProdutos
+  return getCustoProdutos(sale)
 }
   /*
   ============================================================
@@ -1070,13 +1031,11 @@ function Caixa() {
   VENDIDO
   ============================================================
   */
-
 const totalVendido =
   vendasDoCaixa.reduce(
     (total, sale) =>
       total +
-      Number(sale.total || 0) -
-      Number(sale.delivery_fee || 0),
+      getCustoProdutos(sale),
     0
   )
 
