@@ -22,6 +22,7 @@ export interface Product {
   purchasePrice: number
 
   salePrice: number
+  
 
   salePricePackage?: number | null
 }

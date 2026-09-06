@@ -198,7 +198,7 @@ function Dashboard() {
       (product) =>
         Number(
           product.stock || 0
-        ) <= 5
+        ) <= 1
     )
 
   const lowStock =
