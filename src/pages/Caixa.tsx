@@ -4273,16 +4273,13 @@ async function confirmarConferenciaManual() {
                     sale
                   )
 
-                const valorRecebido =
-                  getValorRecebido(
-                    sale
-                  )
+              const valorRecebido =
+  Number(sale.received_total || 0) +
+  Number(sale.delivery_fee || 0)
 
-                const lucro =
-                  calcularLucro(
-                    sale
-                  )
-
+               const lucro =
+  valorRecebido -
+  custo
                 const frete =
                   Number(
                     sale.delivery_fee ||
