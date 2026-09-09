@@ -535,7 +535,42 @@ function Caixa() {
 
   async function loadData() {
     setLoading(true)
+    // Verifica novamente no banco se já existe um caixa aberto
+    // antes de criar um novo.
+    const {
+      data: caixaAberto,
+      error: erroVerificacao,
+    } = await supabase
+      .from("cash_registers")
+      .select("id, name, opened_at")
+      .eq("status", "Aberto")
+      .limit(1)
 
+    if (erroVerificacao) {
+      console.error(
+        "ERRO AO VERIFICAR CAIXA ABERTO:",
+        erroVerificacao
+      )
+
+      alert(
+        `Não foi possível verificar se já existe um caixa aberto.\n\n${erroVerificacao.message}`
+      )
+
+      setOpeningStock(false)
+      return
+    }
+
+    if (
+      caixaAberto &&
+      caixaAberto.length > 0
+    ) {
+      alert(
+        "Já existe um caixa aberto. Não é possível criar outro."
+      )
+
+      setOpeningStock(false)
+      return
+    }
     const {
       data: cashData,
       error: cashError,
