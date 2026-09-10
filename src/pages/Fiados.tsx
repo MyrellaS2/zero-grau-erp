@@ -6,6 +6,7 @@ function Fiados() {
   const [payment, setPayment] = useState("")
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [discount, setDiscount] = useState("")
+  const [addition, setAddition] = useState("")
   const [receiving, setReceiving] = useState(false)
   const [selectedFiado, setSelectedFiado] = useState<any | null>(null)
 
@@ -140,6 +141,10 @@ function Fiados() {
       String(discount)
         .replace(",", ".") || 0
     )
+    const additionValue = Number(
+  String(addition)
+    .replace(",", ".") || 0
+)
 
     if (
       isNaN(discountValue) ||
@@ -160,6 +165,15 @@ function Fiados() {
       )
       return
     }
+    if (
+  isNaN(additionValue) ||
+  additionValue < 0
+) {
+  alert(
+    "Informe um acréscimo válido."
+  )
+  return
+}
 
     /*
     O desconto é aplicado somente
@@ -169,8 +183,12 @@ function Fiados() {
     */
 
     const receivedTotal =
-      valorProdutos -
-      discountValue
+  Math.max(
+    valorProdutos -
+      discountValue +
+      additionValue,
+    0
+  )
 
     setReceiving(true)
 
@@ -190,6 +208,8 @@ function Fiados() {
 
         discount:
           discountValue,
+          addition:
+  additionValue,
 
         received_total:
           receivedTotal,
@@ -247,8 +267,9 @@ function Fiados() {
     )
 
     setPayment("")
-    setDiscount("")
-    setSelectedId(null)
+setDiscount("")
+setAddition("")
+setSelectedId(null)
 
     setReceiving(false)
 
@@ -462,13 +483,15 @@ function Fiados() {
     )
 
     setPayment("")
-    setDiscount("")
+setDiscount("")
+setAddition("")
   }
 
   function closeReceive() {
     setSelectedId(null)
     setPayment("")
     setDiscount("")
+    setAddition("")
   }
 
   return (
@@ -721,7 +744,7 @@ function Fiados() {
 
               </div>
 
-              <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-5 gap-4">
 
                 <div className="bg-gray-50 p-4 rounded-lg">
 
@@ -778,6 +801,27 @@ function Fiados() {
                   />
 
                 </div>
+                <div className="bg-blue-50 p-4 rounded-lg">
+
+  <p className="text-sm text-gray-500">
+    Acréscimo
+  </p>
+
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    value={addition}
+    onChange={(e) =>
+      setAddition(
+        e.target.value
+      )
+    }
+    placeholder="0,00"
+    className="border p-2 rounded w-full mt-1"
+  />
+
+</div>
 
                 <div className="bg-green-50 p-4 rounded-lg">
 
