@@ -511,20 +511,47 @@ function Caixa() {
       ) +
       totalRecebido -
       totalSaidas
+const valorProdutosHistorico =
+  totalRecebido -
+  totalFretes -
+  lucroHistorico
+ setClosedCashDetails({
+  recebidoHistorico:
+    totalRecebido,
 
-    setClosedCashDetails({
-      recebidoHistorico:
-        totalRecebido,
+  valorProdutosHistorico:
+    Math.max(
+      valorProdutosHistorico,
+      0
+    ),
 
-      fretesHistorico:
-        totalFretes,
+  fretesHistorico:
+    totalFretes,
 
-      lucroHistorico:
-        lucroHistorico,
+  lucroHistorico:
+    lucroHistorico,
 
-      saldoFinal:
-        saldoFinal,
-    })
+ totalSaidasHistorico:
+  totalSaidas,
+
+  saldoFinal:
+    saldoFinal,
+
+  dinheiroEsperado:
+    Number(
+      cash.expected_cash || 0
+    ),
+
+  dinheiroContado:
+    Number(
+      cash.counted_cash || 0
+    ),
+
+  diferencaDinheiro:
+    Number(
+      cash.cash_difference || 0
+    ),
+})
   }
 
   /*
@@ -535,42 +562,8 @@ function Caixa() {
 
   async function loadData() {
     setLoading(true)
-    // Verifica novamente no banco se já existe um caixa aberto
-    // antes de criar um novo.
-    const {
-      data: caixaAberto,
-      error: erroVerificacao,
-    } = await supabase
-      .from("cash_registers")
-      .select("id, name, opened_at")
-      .eq("status", "Aberto")
-      .limit(1)
-
-    if (erroVerificacao) {
-      console.error(
-        "ERRO AO VERIFICAR CAIXA ABERTO:",
-        erroVerificacao
-      )
-
-      alert(
-        `Não foi possível verificar se já existe um caixa aberto.\n\n${erroVerificacao.message}`
-      )
-
-      setOpeningStock(false)
-      return
-    }
-
-    if (
-      caixaAberto &&
-      caixaAberto.length > 0
-    ) {
-      alert(
-        "Já existe um caixa aberto. Não é possível criar outro."
-      )
-
-      setOpeningStock(false)
-      return
-    }
+    
+  
     const {
       data: cashData,
       error: cashError,
@@ -1894,7 +1887,37 @@ async function confirmarConferenciaManual() {
     ABRE O CAIXA
     ------------------------------------------------------------
     */
+const {
+  data: caixaAberto,
+  error: erroVerificacao,
+} = await supabase
+  .from("cash_registers")
+  .select("id, name, opened_at")
+  .eq("status", "Aberto")
+  .limit(1)
 
+if (erroVerificacao) {
+  console.error(
+    "ERRO AO VERIFICAR CAIXA ABERTO:",
+    erroVerificacao
+  )
+
+  alert(
+    `Não foi possível verificar se já existe um caixa aberto.\n\n${erroVerificacao.message}`
+  )
+
+  setOpeningStock(false)
+  return
+}
+
+if (caixaAberto && caixaAberto.length > 0) {
+  alert(
+    "Já existe um caixa aberto. Não é possível criar outro."
+  )
+
+  setOpeningStock(false)
+  return
+}
     const {
       data: cashData,
       error: cashError,
@@ -4630,70 +4653,130 @@ async function confirmarConferenciaManual() {
 
                 <>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                    <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl">
+  <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl">
+    <p className="text-orange-700 font-semibold">
+      🛒 Valor para produtos
+    </p>
 
-                      <p className="text-blue-700 font-semibold">
-                        💵 Recebido
-                      </p>
+    <p className="text-2xl font-bold text-orange-800 mt-2">
+      R${" "}
+      {closedCashDetails.valorProdutosHistorico.toFixed(2)}
+    </p>
 
-                      <p className="text-2xl font-bold text-blue-800 mt-2">
-                        R${" "}
-                        {closedCashDetails.recebidoHistorico.toFixed(
-                          2
-                        )}
-                      </p>
+    <p className="text-sm text-orange-700 mt-2">
+      Valor separado para compra e reposição dos produtos.
+    </p>
+  </div>
 
-                    </div>
+  <div className="bg-green-50 border border-green-200 p-5 rounded-xl">
+    <p className="text-green-700 font-semibold">
+      📈 Valor do lucro
+    </p>
 
-                    <div className="bg-gray-50 border p-5 rounded-xl">
+    <p className="text-2xl font-bold text-green-700 mt-2">
+      R${" "}
+      {closedCashDetails.lucroHistorico.toFixed(2)}
+    </p>
+  </div>
 
-                      <p className="text-gray-600 font-semibold">
-                        🚚 Fretes
-                      </p>
+  <div className="bg-gray-50 border p-5 rounded-xl">
+    <p className="text-gray-600 font-semibold">
+      🚚 Valor do frete
+    </p>
 
-                      <p className="text-2xl font-bold mt-2">
-                        R${" "}
-                        {closedCashDetails.fretesHistorico.toFixed(
-                          2
-                        )}
-                      </p>
+    <p className="text-2xl font-bold mt-2">
+      R${" "}
+      {closedCashDetails.fretesHistorico.toFixed(2)}
+    </p>
+  </div>
 
-                    </div>
+  <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl">
+    <p className="text-blue-700 font-semibold">
+      💳 Total recebido
+    </p>
 
-                    <div className="bg-green-50 border border-green-200 p-5 rounded-xl">
+    <p className="text-2xl font-bold text-blue-800 mt-2">
+      R${" "}
+      {closedCashDetails.recebidoHistorico.toFixed(2)}
+    </p>
 
-                      <p className="text-green-700 font-semibold">
-                        📈 Lucro
-                      </p>
+    <p className="text-sm text-blue-700 mt-2">
+      Produtos + lucro + fretes.
+    </p>
+  </div>
 
-                      <p className="text-2xl font-bold text-green-700 mt-2">
-                        R${" "}
-                        {closedCashDetails.lucroHistorico.toFixed(
-                          2
-                        )}
-                      </p>
+  <div className="bg-red-50 border border-red-200 p-5 rounded-xl">
+    <p className="text-red-700 font-semibold">
+      📤 Total de saídas
+    </p>
 
-                    </div>
+    <p className="text-2xl font-bold text-red-800 mt-2">
+      R${" "}
+      {closedCashDetails.totalSaidasHistorico.toFixed(2)}
+    </p>
 
-                    <div className="bg-purple-50 border border-purple-200 p-5 rounded-xl">
+    <p className="text-sm text-red-700 mt-2">
+      Valor retirado do caixa durante o período.
+    </p>
+  </div>
 
-                      <p className="text-purple-700 font-semibold">
-                        💰 Saldo disponível final
-                      </p>
+  <div className="bg-purple-50 border border-purple-200 p-5 rounded-xl">
+    <p className="text-purple-700 font-semibold">
+      💰 Saldo disponível final
+    </p>
 
-                      <p className="text-2xl font-bold text-purple-800 mt-2">
-                        R${" "}
-                        {closedCashDetails.saldoFinal.toFixed(
-                          2
-                        )}
-                      </p>
+    <p className="text-2xl font-bold text-purple-800 mt-2">
+      R${" "}
+      {closedCashDetails.saldoFinal.toFixed(2)}
+    </p>
+  </div>
 
-                    </div>
+  <div className="bg-gray-50 border border-gray-200 p-5 rounded-xl sm:col-span-2">
+    <p className="text-gray-700 font-semibold mb-3">
+      💵 Conferência do dinheiro
+    </p>
 
-                  </div>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
+      <div>
+        <p className="text-sm text-gray-500">
+          Dinheiro esperado
+        </p>
+
+        <p className="text-lg font-bold text-gray-800">
+          R${" "}
+          {closedCashDetails.dinheiroEsperado.toFixed(2)}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-sm text-gray-500">
+          Dinheiro contado
+        </p>
+
+        <p className="text-lg font-bold text-gray-800">
+          R${" "}
+          {closedCashDetails.dinheiroContado.toFixed(2)}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-sm text-gray-500">
+          Diferença
+        </p>
+
+        <p className="text-lg font-bold text-gray-800">
+          R${" "}
+          {closedCashDetails.diferencaDinheiro.toFixed(2)}
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+</div>
                   <div className="border-t mt-6 pt-4 text-sm text-gray-500 space-y-1">
 
                     <p>
