@@ -969,17 +969,20 @@ const valorProdutosHistorico =
       )
     }
 
-    const custoTotal =
-      getCustoProdutos(
-        sale
-      )
+   const custoTotal =
+  getCustoProdutos(
+    sale
+  )
 
-    return (
-      getValorRecebido(
-        sale
-      ) -
-      custoTotal
-    )
+const valorRecebidoProdutos =
+  Number(
+    sale.received_total || 0
+  )
+
+return (
+  valorRecebidoProdutos -
+  custoTotal
+)
   }
 
   /*
