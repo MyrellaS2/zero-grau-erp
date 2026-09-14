@@ -12,6 +12,7 @@ function Vendas() {
   const [productId, setProductId] = useState("")
   const [quantity, setQuantity] = useState("")
   const [productSearch, setProductSearch] = useState("")
+  const [salesSearch, setSalesSearch] = useState("")
 
   const [selectedCopaoId, setSelectedCopaoId] =
     useState("")
@@ -1936,54 +1937,41 @@ function Vendas() {
     }
   }
 
-  const filteredSales =
-    sales.filter(
-      (sale) => {
-        if (
-          !startDate &&
-          !endDate
-        ) {
-          return true
-        }
+ const filteredSales =
+  sales.filter((sale) => {
+    const normalizedSearch = salesSearch.trim().toLowerCase()
 
-        const saleDate =
-          new Date(
-            sale.date
-          )
+    if (normalizedSearch) {
+      const searchableText = [
+        sale.product,
+        sale.customer,
+        sale.payment,
+        sale.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
 
-        const start =
-          startDate
-            ? new Date(
-                `${startDate}T00:00:00`
-              )
-            : null
-
-        const end =
-          endDate
-            ? new Date(
-                `${endDate}T23:59:59`
-              )
-            : null
-
-        if (
-          start &&
-          saleDate <
-            start
-        ) {
-          return false
-        }
-
-        if (
-          end &&
-          saleDate >
-            end
-        ) {
-          return false
-        }
-
-        return true
+      if (!searchableText.includes(normalizedSearch)) {
+        return false
       }
-    )
+    }
+
+    if (!startDate && !endDate) return true
+
+    const saleDate = new Date(sale.date)
+    const start = startDate
+      ? new Date(`${startDate}T00:00:00`)
+      : null
+    const end = endDate
+      ? new Date(`${endDate}T23:59:59`)
+      : null
+
+    if (start && saleDate < start) return false
+    if (end && saleDate > end) return false
+
+    return true
+  })
 
   const paidSales =
     filteredSales.filter(
@@ -3201,45 +3189,40 @@ function Vendas() {
           🔎 Pesquisar vendas
         </h2>
 
-        <div className="flex flex-wrap gap-4 mt-4">
+    <div className="flex flex-wrap gap-4 mt-4">
+  <input
+    type="text"
+    className="border p-2 rounded min-w-[240px]"
+    placeholder="Pesquisar produto ou cliente..."
+    value={salesSearch}
+    onChange={(e) => setSalesSearch(e.target.value)}
+  />
 
-          <input
-            type="date"
-            className="border p-2 rounded"
-            value={
-              startDate
-            }
-            onChange={(e) =>
-              setStartDate(
-                e.target.value
-              )
-            }
-          />
+  <input
+    type="date"
+    className="border p-2 rounded"
+    value={startDate}
+    onChange={(e) => setStartDate(e.target.value)}
+  />
 
-          <input
-            type="date"
-            className="border p-2 rounded"
-            value={
-              endDate
-            }
-            onChange={(e) =>
-              setEndDate(
-                e.target.value
-              )
-            }
-          />
+  <input
+    type="date"
+    className="border p-2 rounded"
+    value={endDate}
+    onChange={(e) => setEndDate(e.target.value)}
+  />
 
-          <button
-            onClick={() => {
-              setStartDate("")
-              setEndDate("")
-            }}
-            className="border px-4 rounded"
-          >
-            Limpar
-          </button>
-
-        </div>
+  <button
+    onClick={() => {
+      setSalesSearch("")
+      setStartDate("")
+      setEndDate("")
+    }}
+    className="border px-4 rounded"
+  >
+    Limpar
+  </button>
+</div>
 
       </div>
 
