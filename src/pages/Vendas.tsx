@@ -1230,6 +1230,15 @@ function productMatchesSearch(item: any, search: string) {
         ),
       0
     )
+    const discountValuePreview =
+  Number(
+    String(discount)
+      .replace(",", ".") || 0
+  )
+
+const previewProfit =
+  cartProfit -
+  discountValuePreview
 
   const cashGivenValue =
     Number(
@@ -1756,24 +1765,54 @@ function productMatchesSearch(item: any, search: string) {
         additionValue -
         discountValue
 
-      const saleProducts =
-        cart.map(
-          (item) => ({
-            ...item,
+     const saleProducts =
+  cart.map((item) => {
+    const itemTotal =
+      Number(item.total || 0)
 
-            profit:
-              Number(
-                item.profit || 0
-              ),
+    const cartTotalValue =
+      Number(cartTotal || 0)
 
-            stockItems:
-              Array.isArray(
-                item.stockItems
-              )
-                ? item.stockItems
-                : [],
-          })
-        )
+    const discountShare =
+      cartTotalValue > 0
+        ? (itemTotal / cartTotalValue) *
+          discountValue
+        : 0
+
+    const additionShare =
+      cartTotalValue > 0
+        ? (itemTotal / cartTotalValue) *
+          additionValue
+        : 0
+
+    const originalProfit =
+      Number(
+        item.profit !== undefined
+          ? item.profit
+          : (
+              Number(item.salePrice || 0) -
+              Number(item.purchasePrice || 0)
+            ) *
+              Number(item.quantity || 0)
+      )
+
+    const itemProfit =
+      originalProfit -
+      discountShare +
+      additionShare
+
+    return {
+      ...item,
+
+      profit: itemProfit,
+
+      stockItems:
+        Array.isArray(item.stockItems)
+          ? item.stockItems
+          : [],
+    }
+  })
+        
 
       const saleData = {
         products:
@@ -3107,9 +3146,7 @@ const searchedProductProfit =
 
             <p className="text-green-600">
               Lucro: R${" "}
-              {cartProfit.toFixed(
-                2
-              )}
+              {previewProfit.toFixed(2)}
             </p>
 
           </div>
