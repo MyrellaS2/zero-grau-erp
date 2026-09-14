@@ -361,6 +361,29 @@ function Vendas() {
       }
     ).format(date)
   }
+  function normalizeSearchText(value: any) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[•|,;/_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function productMatchesSearch(item: any, search: string) {
+  const itemText = normalizeSearchText(
+    `${item.name || ""} ${item.displayName || ""}`
+  )
+
+  const searchTokens = normalizeSearchText(search)
+    .split(" ")
+    .filter(Boolean)
+
+  return searchTokens.every((token) =>
+    itemText.includes(token)
+  )
+}
   function getCustoProdutos(sale: any) {
     if (!Array.isArray(sale.products)) {
       return 0
@@ -1979,6 +2002,94 @@ function Vendas() {
         sale.status ===
         "Pago"
     )
+const salesInPeriod = sales.filter((sale) => {
+  if (!startDate && !endDate) return true
+
+  const saleDate = new Date(sale.date)
+
+  const start = startDate
+    ? new Date(`${startDate}T00:00:00`)
+    : null
+
+  const end = endDate
+    ? new Date(`${endDate}T23:59:59`)
+    : null
+
+  if (start && saleDate < start) return false
+  if (end && saleDate > end) return false
+
+  return true
+})
+
+const searchedProductItems = salesInPeriod
+  .filter((sale) => sale.status === "Pago")
+  .flatMap((sale) =>
+    Array.isArray(sale.products)
+      ? sale.products.filter(
+          (item: any) =>
+           productMatchesSearch(
+  item,
+  salesSearch
+)
+        )
+      : []
+  )
+
+const searchedProductQuantity =
+  salesSearch.trim()
+    ? searchedProductItems.reduce(
+        (total: number, item: any) =>
+          total + Number(item.quantity || 0),
+        0
+      )
+    : 0
+
+const searchedProductValue =
+  salesSearch.trim()
+    ? searchedProductItems.reduce(
+        (total: number, item: any) => {
+          const product = products.find(
+            (p: any) => String(p.id) === String(item.id)
+          )
+
+          const quantity = Number(item.quantity || 0)
+
+          const purchasePrice =
+            Number(item.purchasePrice || 0) ||
+            Number(product?.purchasePrice || 0)
+
+          return total + purchasePrice * quantity
+        },
+        0
+      )
+    : 0
+
+const searchedProductProfit =
+  salesSearch.trim()
+    ? searchedProductItems.reduce(
+        (total: number, item: any) => {
+          const product = products.find(
+            (p: any) => String(p.id) === String(item.id)
+          )
+
+          const quantity = Number(item.quantity || 0)
+
+          const salePrice =
+            Number(item.salePrice || 0) ||
+            Number(product?.salePrice || 0)
+
+          const purchasePrice =
+            Number(item.purchasePrice || 0) ||
+            Number(product?.purchasePrice || 0)
+
+          const profit =
+            (salePrice - purchasePrice) * quantity
+
+          return total + profit
+        },
+        0
+      )
+    : 0
 
    const periodTotal =
     paidSales.reduce(
@@ -3288,7 +3399,45 @@ function Vendas() {
           </p>
 
         </div>
+{salesSearch.trim() && (
+ <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
 
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="text-gray-500">
+        🛒 Produto pesquisado
+      </h2>
+
+      <p className="text-lg font-bold mt-2">
+        {salesSearch}
+      </p>
+
+      <p className="text-gray-500 mt-1">
+        {searchedProductQuantity} un vendidas
+      </p>
+    </div>
+
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="text-gray-500">
+        💰 Valor vendido
+      </h2>
+
+      <p className="text-2xl font-bold mt-2">
+        R$ {searchedProductValue.toFixed(2)}
+      </p>
+    </div>
+
+    <div className="bg-white p-6 rounded-xl shadow">
+      <h2 className="text-gray-500">
+        📈 Lucro
+      </h2>
+
+      <p className="text-2xl font-bold text-green-600 mt-2">
+        R$ {searchedProductProfit.toFixed(2)}
+      </p>
+    </div>
+
+  </div>
+)}
       </div>
 
       {/* ================================================== */}
