@@ -784,10 +784,37 @@ const valorProdutosHistorico =
   ============================================================
   */
 
-  const recebimentosDoCaixa =
+   const recebimentosDoCaixa =
     cashRegister
       ? sales.filter(
           (sale) => {
+            const payment = String(
+              sale.payment || ""
+            )
+
+            // Venda dividida com Fiado:
+            // entra no caixa pela parte paga na hora.
+            if (
+              payment.includes(" + ")
+            ) {
+              if (!sale.date) {
+                return false
+              }
+
+              const saleDate =
+                new Date(sale.date)
+
+              const openedAt =
+                new Date(
+                  cashRegister.opened_at
+                )
+
+              return (
+                saleDate >=
+                openedAt
+              )
+            }
+
             if (
               sale.status !==
               "Pago"
@@ -936,9 +963,54 @@ const valorProdutosHistorico =
   ============================================================
   */
 
- const getValorRecebido = (
+const getValorRecebido = (
   sale: any
 ) => {
+  const payment = String(sale.payment || "")
+
+  // SOMENTE venda dividida com Fiado
+  if (payment.includes(" + ")) {
+    const partes = payment.split(" + ")
+
+    const valorPago = partes.reduce(
+      (total, part) => {
+        const [method, valueText] =
+          part.split(": R$ ")
+
+        if (
+          String(method).trim() === "Fiado"
+        ) {
+          return total
+        }
+
+        return (
+          total +
+          Number(
+            String(valueText || "0")
+              .replace(",", ".")
+          )
+        )
+      },
+      0
+    )
+
+    const totalVenda =
+      Number(sale.total || 0)
+
+    const custo =
+      getCustoProdutos(sale)
+
+    if (totalVenda <= 0) {
+      return 0
+    }
+
+    return (
+      custo *
+      (valorPago / totalVenda)
+    )
+  }
+
+  // Venda normal e Fiado puro permanecem iguais
   return getCustoProdutos(sale)
 }
   /*
@@ -991,43 +1063,81 @@ return (
   ============================================================
   */
 
-  const getDadosFinanceiros = (
-    sale: any
-  ) => {
-    const custo =
-      getCustoProdutos(
+ const getDadosFinanceiros = (
+  sale: any
+) => {
+  const custo =
+    getCustoProdutos(
+      sale
+    )
+
+  const frete =
+    Number(
+      sale.delivery_fee ||
+        0
+    )
+
+  let lucro = 0
+
+  const payment =
+    String(
+      sale.payment || ""
+    )
+
+  // SOMENTE venda mista
+  if (
+    payment.includes(" + ")
+  ) {
+    const valorRecebido =
+      getValorRecebido(
         sale
       )
 
-    const frete =
+    const totalVenda =
       Number(
-        sale.delivery_fee ||
-          0
+        sale.total || 0
       )
 
-    let lucro = 0
+    const lucroTotal =
+      Number(
+        sale.profit || 0
+      )
 
     if (
-      sale.payment !==
-      "Fiado"
+      totalVenda > 0
     ) {
       lucro =
-        Number(
-          sale.profit || 0
-        )
-    } else {
-      lucro =
-        calcularLucro(
-          sale
+        lucroTotal *
+        (
+          valorRecebido /
+          totalVenda
         )
     }
+  } else if (
+    sale.payment !==
+    "Fiado"
+  ) {
+    // Venda normal: exatamente como antes
+    lucro =
+      Number(
+        sale.profit || 0
+      )
+} else {
+  // Fiado puro: lucro somente dos produtos
+  lucro =
+    Number(
+      sale.received_total || 0
+    ) -
+    frete -
+    custo
+}
 
-    return {
-      custo,
-      lucro,
-      frete,
-    }
+  return {
+    custo,
+    lucro,
+    frete,
   }
+}
 
   /*
   ============================================================
@@ -1062,25 +1172,201 @@ return (
   VENDIDO
   ============================================================
   */
+
 const totalVendido =
   vendasDoCaixa.reduce(
-    (total, sale) =>
-      total +
-      getCustoProdutos(sale),
+    (total, sale) => {
+      const payment =
+        String(sale.payment || "")
+
+      // SOMENTE venda mista
+      if (
+        payment.includes(" + ")
+      ) {
+       return (
+  total +
+  Math.floor(
+    getValorRecebido(sale) * 100
+  ) / 100
+)
+      }
+
+      // Venda normal
+      return (
+        total +
+        getCustoProdutos(sale)
+      )
+    },
     0
-  )
+  ) +
+  sales
+    .filter((sale) => {
+      const payment =
+        String(sale.payment || "")
+
+      // Somente venda mista pendente
+      if (
+        !payment.includes(" + ") ||
+        sale.status === "Pago"
+      ) {
+        return false
+      }
+
+      if (!sale.date) {
+        return false
+      }
+
+      const saleDate =
+        new Date(sale.date)
+
+      const openedAt =
+        new Date(
+          cashRegister.opened_at
+        )
+
+      return (
+        saleDate >= openedAt
+      )
+    })
+    .reduce(
+  (total, sale) =>
+    total +
+    Math.floor(
+      getValorRecebido(sale) * 100
+    ) / 100,
+  0
+)
 
   /*
   ============================================================
   RECEBIDO
   ============================================================
   */
-
- const recebido =
+const recebido =
   recebimentosDoCaixa.reduce(
-    (total, sale) =>
-      total +
-      getValorRecebido(sale),
+    (total, sale) => {
+      const payment =
+        String(sale.payment || "")
+
+      // SOMENTE venda mista
+      if (
+        payment.includes(" + ")
+      ) {
+        const partes =
+          payment.split(" + ")
+
+        const valorPago =
+          partes.reduce(
+            (sum, part) => {
+              const [
+                method,
+                valueText,
+              ] =
+                part.split(": R$ ")
+
+              if (
+                String(method).trim() ===
+                "Fiado"
+              ) {
+                return sum
+              }
+
+              return (
+                sum +
+                Number(
+                  String(
+                    valueText || "0"
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              )
+            },
+            0
+          )
+
+        const valorFiado =
+          partes.reduce(
+            (sum, part) => {
+              const [
+                method,
+                valueText,
+              ] =
+                part.split(": R$ ")
+
+              if (
+                String(method).trim() !==
+                "Fiado"
+              ) {
+                return sum
+              }
+
+              return (
+                sum +
+                Number(
+                  String(
+                    valueText || "0"
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              )
+            },
+            0
+          )
+
+        const totalVenda =
+          Number(
+            sale.total || 0
+          )
+
+        const custo =
+          getCustoProdutos(sale)
+
+        if (
+          totalVenda <= 0
+        ) {
+          return total
+        }
+
+        const partePaga =
+          custo *
+          (valorPago /
+            totalVenda)
+
+        const parteFiado =
+          sale.status === "Pago" &&
+          sale.received_cash_register_id !==
+            null &&
+          sale.received_cash_register_id !==
+            undefined &&
+          String(
+            sale.received_cash_register_id
+          ) ===
+            String(
+              cashRegister.id
+            )
+            ? custo *
+              (valorFiado /
+                totalVenda)
+            : 0
+
+        return (
+          total +
+          partePaga +
+          parteFiado
+        )
+      }
+
+      // Venda normal e Fiado puro:
+      // mantém o comportamento atual
+      return (
+        total +
+        getValorRecebido(sale)
+      )
+    },
     0
   )
 
@@ -1090,12 +1376,135 @@ const totalVendido =
   ============================================================
   */
 
- 
 const totalFretes =
   recebimentosDoCaixa.reduce(
-    (total, sale) =>
-      total +
-      Number(sale.delivery_fee || 0),
+    (total, sale) => {
+      const payment =
+        String(sale.payment || "")
+
+      // SOMENTE venda mista
+      if (
+        payment.includes(" + ")
+      ) {
+        const partes =
+          payment.split(" + ")
+
+        const valorPago =
+          partes.reduce(
+            (sum, part) => {
+              const [
+                method,
+                valueText,
+              ] =
+                part.split(": R$ ")
+
+              if (
+                String(method).trim() ===
+                "Fiado"
+              ) {
+                return sum
+              }
+
+              return (
+                sum +
+                Number(
+                  String(
+                    valueText || "0"
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              )
+            },
+            0
+          )
+
+        const valorFiado =
+          partes.reduce(
+            (sum, part) => {
+              const [
+                method,
+                valueText,
+              ] =
+                part.split(": R$ ")
+
+              if (
+                String(method).trim() !==
+                "Fiado"
+              ) {
+                return sum
+              }
+
+              return (
+                sum +
+                Number(
+                  String(
+                    valueText || "0"
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              )
+            },
+            0
+          )
+
+        const totalVenda =
+          Number(
+            sale.total || 0
+          )
+
+        const frete =
+          Number(
+            sale.delivery_fee || 0
+          )
+
+        if (
+          totalVenda <= 0
+        ) {
+          return total
+        }
+
+        const fretePago =
+          frete *
+          (valorPago /
+            totalVenda)
+
+        const freteFiado =
+          sale.status === "Pago" &&
+          sale.received_cash_register_id !==
+            null &&
+          sale.received_cash_register_id !==
+            undefined &&
+          String(
+            sale.received_cash_register_id
+          ) ===
+            String(
+              cashRegister.id
+            )
+            ? frete *
+              (valorFiado /
+                totalVenda)
+            : 0
+
+        return (
+          total +
+          fretePago +
+          freteFiado
+        )
+      }
+
+      // Venda normal e Fiado puro:
+      // mantém exatamente como antes
+      return (
+        total +
+        Number(
+          sale.delivery_fee || 0
+        )
+      )
+    },
     0
   )
 
@@ -1105,11 +1514,133 @@ const totalFretes =
   ============================================================
   */
 
- const lucroTotal =
+const lucroTotal =
   recebimentosDoCaixa.reduce(
-    (total, sale) =>
-      total +
-      getDadosFinanceiros(sale).lucro,
+    (total, sale) => {
+      const payment =
+        String(sale.payment || "")
+
+      // SOMENTE venda mista
+      if (
+        payment.includes(" + ")
+      ) {
+        const partes =
+          payment.split(" + ")
+
+        const valorPago =
+          partes.reduce(
+            (sum, part) => {
+              const [
+                method,
+                valueText,
+              ] =
+                part.split(": R$ ")
+
+              if (
+                String(method).trim() ===
+                "Fiado"
+              ) {
+                return sum
+              }
+
+              return (
+                sum +
+                Number(
+                  String(
+                    valueText || "0"
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              )
+            },
+            0
+          )
+
+        const valorFiado =
+          partes.reduce(
+            (sum, part) => {
+              const [
+                method,
+                valueText,
+              ] =
+                part.split(": R$ ")
+
+              if (
+                String(method).trim() !==
+                "Fiado"
+              ) {
+                return sum
+              }
+
+              return (
+                sum +
+                Number(
+                  String(
+                    valueText || "0"
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              )
+            },
+            0
+          )
+
+        const totalVenda =
+          Number(
+            sale.total || 0
+          )
+
+        const lucroVenda =
+          Number(
+            sale.profit || 0
+          )
+
+        if (
+          totalVenda <= 0
+        ) {
+          return total
+        }
+
+        const lucroPartePaga =
+          lucroVenda *
+          (valorPago /
+            totalVenda)
+
+        const lucroParteFiado =
+          sale.status === "Pago" &&
+          sale.received_cash_register_id !==
+            null &&
+          sale.received_cash_register_id !==
+            undefined &&
+          String(
+            sale.received_cash_register_id
+          ) ===
+            String(
+              cashRegister.id
+            )
+            ? lucroVenda *
+              (valorFiado /
+                totalVenda)
+            : 0
+
+        return (
+          total +
+          lucroPartePaga +
+          lucroParteFiado
+        )
+      }
+
+      // Venda normal e Fiado puro:
+      // mantém exatamente como antes
+      return (
+        total +
+        getDadosFinanceiros(sale).lucro
+      )
+    },
     0
   )
   

@@ -5,9 +5,14 @@ function Vendas() {
   const [products, setProducts] = useState<any[]>([])
   const [sales, setSales] = useState<any[]>([])
   const [copoes, setCopoes] = useState<any[]>([])
+  const [combos, setCombos] = useState<any[]>([])
+const [comboComponents, setComboComponents] = useState<any[]>([])
+const [comboChoiceGroups, setComboChoiceGroups] = useState<any[]>([])
 
   const [saleMode, setSaleMode] =
-    useState<"Produto" | "Copao">("Produto")
+  useState<
+    "Produto" | "Copao" | "Combo"
+  >("Produto")
 
   const [productId, setProductId] = useState("")
   const [quantity, setQuantity] = useState("")
@@ -16,6 +21,11 @@ function Vendas() {
 
   const [selectedCopaoId, setSelectedCopaoId] =
     useState("")
+    const [selectedComboId, setSelectedComboId] = useState("")
+const [comboQuantity, setComboQuantity] = useState("1")
+const [comboSelections, setComboSelections] = useState<
+  Record<number, Record<number, number>>
+>({})
 
   const [selectedGeloComponentId, setSelectedGeloComponentId] =
     useState("")
@@ -39,6 +49,10 @@ function Vendas() {
 
   const [customer, setCustomer] = useState("")
   const [payment, setPayment] = useState("")
+  const [payment2, setPayment2] = useState("")
+const [payment2Value, setPayment2Value] = useState("")
+const [payment3, setPayment3] = useState("")
+const [payment3Value, setPayment3Value] = useState("")
   const [discount, setDiscount] = useState("")
   const [addition, setAddition] = useState("")
 
@@ -156,6 +170,30 @@ function Vendas() {
     } = await supabase
       .from("copao_components")
       .select("*")
+      const {
+  data: combosData,
+  error: combosError,
+} = await supabase
+  .from("combos")
+  .select("*")
+  .eq("active", true)
+  .order("name", {
+    ascending: true,
+  })
+
+const {
+  data: comboComponentsData,
+  error: comboComponentsError,
+} = await supabase
+  .from("combo_components")
+  .select("*")
+
+const {
+  data: comboChoiceGroupsData,
+  error: comboChoiceGroupsError,
+} = await supabase
+  .from("combo_choice_groups")
+  .select("*")
 
     if (productsError) {
       console.error(
@@ -184,6 +222,26 @@ function Vendas() {
         copaoComponentsError
       )
     }
+    if (combosError) {
+  console.error(
+    "ERRO AO CARREGAR COMBOS:",
+    combosError
+  )
+}
+
+if (comboComponentsError) {
+  console.error(
+    "ERRO AO CARREGAR COMPONENTES DOS COMBOS:",
+    comboComponentsError
+  )
+}
+
+if (comboChoiceGroupsError) {
+  console.error(
+    "ERRO AO CARREGAR GRUPOS DOS COMBOS:",
+    comboChoiceGroupsError
+  )
+}
 
     const formattedProducts =
       (productsData || []).map(
@@ -234,7 +292,57 @@ function Vendas() {
     if (copoesData) {
       setCopoes(copoesData)
     }
+if (combosData) {
+  setCombos(combosData)
+}
 
+if (comboComponentsData) {
+  setComboComponents(
+    comboComponentsData.map(
+      (item: any) => ({
+        ...item,
+        combo_id: Number(
+          item.combo_id
+        ),
+        product_id: Number(
+          item.product_id
+        ),
+        quantity: Number(
+          item.quantity || 0
+        ),
+        choice_group_id:
+          item.choice_group_id
+            ? Number(
+                item.choice_group_id
+              )
+            : null,
+        unit_type:
+          item.unit_type ||
+          "Unidade",
+      })
+    )
+  )
+}
+
+if (comboChoiceGroupsData) {
+  setComboChoiceGroups(
+    comboChoiceGroupsData.map(
+      (item: any) => ({
+        ...item,
+        id: Number(item.id),
+        combo_id: Number(
+          item.combo_id
+        ),
+        quantity: Number(
+          item.quantity || 0
+        ),
+        unit_type:
+          item.unit_type ||
+          "Unidade",
+      })
+    )
+  )
+}
     if (copaoComponentsData) {
       setCopaoComponents(
         copaoComponentsData.map(
@@ -406,30 +514,113 @@ function productMatchesSearch(item: any, search: string) {
     )
   }
 
-  function getValorRecebido(sale: any) {
-    if (sale.payment !== "Fiado") {
-      return Number(sale.total || 0)
-    }
+ function getValorRecebido(sale: any) {
+  const payment = String(sale.payment || "")
+
+  // Venda com 2 formas de pagamento
+  if (payment.includes(" + ")) {
+    const valorPagoNaVenda =
+      payment
+        .split(" + ")
+        .reduce((total, part) => {
+          const [method, valueText] =
+            part.split(": R$ ")
+
+          if (
+            String(method).trim() ===
+            "Fiado"
+          ) {
+            return total
+          }
+
+          const value = Number(
+            String(valueText || "0")
+              .replace(",", ".")
+          )
+
+          return total + value
+        }, 0)
+
+    // Se o fiado já foi recebido,
+    // soma somente o valor que foi baixado depois.
+    const valorFiadoRecebido =
+      sale.status === "Pago"
+        ? Number(
+            sale.received_total || 0
+          )
+        : 0
 
     return (
-      Number(sale.received_total || 0) +
-      Number(sale.delivery_fee || 0)
+      valorPagoNaVenda +
+      valorFiadoRecebido
     )
   }
 
-  function getLucro(sale: any) {
-    if (sale.payment !== "Fiado") {
-      return Number(sale.profit || 0)
+  // Venda totalmente fiada
+  if (payment === "Fiado") {
+    return (
+      Number(
+        sale.received_total || 0
+      ) +
+      Number(
+        sale.delivery_fee || 0
+      )
+    )
+  }
+
+  // Venda totalmente paga
+  return Number(
+    sale.total || 0
+  )
+}
+
+ function getLucro(sale: any) {
+  const payment = String(sale.payment || "")
+
+  // Venda com 2 formas de pagamento
+  if (payment.includes(" + ")) {
+    const valorRecebido =
+      getValorRecebido(sale)
+
+    const totalVenda =
+      Number(sale.total || 0)
+
+    const lucroTotal =
+      Number(sale.profit || 0)
+
+    if (totalVenda <= 0) {
+      return 0
     }
 
+    // Reconhece o lucro proporcionalmente
+    // ao valor que já foi recebido.
+    return (
+      lucroTotal *
+      (valorRecebido / totalVenda)
+    )
+  }
+
+  // Venda totalmente fiada
+  if (payment === "Fiado") {
     const custo =
       getCustoProdutos(sale)
 
     const valorProdutos =
-      Number(sale.received_total || 0)
+      Number(
+        sale.received_total || 0
+      )
 
-    return valorProdutos - custo
+    return (
+      valorProdutos -
+      custo
+    )
   }
+
+  // Venda totalmente paga
+  return Number(
+    sale.profit || 0
+  )
+}
   function addToCart() {
     const product =
       products.find(
@@ -1152,7 +1343,424 @@ function productMatchesSearch(item: any, search: string) {
     setCopaoQuantity("1")
     setOptionalCopaoComponents({})
   }
+function getComboSalePrice(combo: any) {
+  const now = new Date()
 
+  const currentMinutes =
+    now.getHours() * 60 +
+    now.getMinutes()
+
+  const nightStart = 1 * 60
+  const nightEnd = 9 * 60 + 30
+
+  if (
+    currentMinutes >= nightStart &&
+    currentMinutes <= nightEnd
+  ) {
+    return Number(
+      combo.night_sale_price || 0
+    )
+  }
+
+  return Number(
+    combo.sale_price || 0
+  )
+}
+
+function addComboToCart() {
+  const combo = combos.find(
+    (item) =>
+      Number(item.id) ===
+      Number(selectedComboId)
+  )
+
+  if (!combo) {
+    alert("Selecione um combo.")
+    return
+  }
+
+  const qtdCombos =
+    Number(comboQuantity)
+
+  if (
+    qtdCombos <= 0
+  ) {
+    alert(
+      "Quantidade de combos inválida."
+    )
+    return
+  }
+
+  const fixedItems =
+    comboComponents.filter(
+      (item: any) =>
+        Number(item.combo_id) ===
+          Number(combo.id) &&
+        !item.choice_group_id
+    )
+
+  const groups =
+    comboChoiceGroups.filter(
+      (group: any) =>
+        Number(group.combo_id) ===
+        Number(combo.id)
+    )
+
+  const stockItems: any[] = []
+
+  let unitCost = 0
+
+  // COMPONENTES FIXOS
+  for (
+    const component of fixedItems
+  ) {
+    const product =
+      products.find(
+        (item) =>
+          Number(item.id) ===
+          Number(component.product_id)
+      )
+
+    if (!product) {
+      alert(
+        "Produto de um componente fixo não encontrado."
+      )
+      return
+    }
+
+    const quantityPerCombo =
+      Number(
+        component.quantity || 0
+      )
+
+    if (
+      quantityPerCombo <= 0
+    ) {
+      continue
+    }
+
+    let stockQuantityPerCombo =
+      quantityPerCombo
+
+    if (
+      component.unit_type ===
+      "Ml"
+    ) {
+      const volumeMl =
+        parseVolumeToMl(
+          product.volume
+        )
+
+      if (
+        volumeMl <= 0
+      ) {
+        alert(
+          `O produto ${product.name} precisa ter volume cadastrado para ser usado em ml.`
+        )
+        return
+      }
+
+      stockQuantityPerCombo =
+        quantityPerCombo /
+        volumeMl
+    }
+
+    const totalStockQuantity =
+      stockQuantityPerCombo *
+      qtdCombos
+
+    stockItems.push({
+      id: product.id,
+      name: product.name,
+      quantity:
+        totalStockQuantity,
+      unitType:
+        component.unit_type,
+      comboComponentId:
+        component.id,
+    })
+
+    unitCost +=
+      Number(
+        product.purchasePrice || 0
+      ) *
+      stockQuantityPerCombo
+  }
+
+  // GRUPOS DE ESCOLHA
+  for (
+    const group of groups
+  ) {
+    const selections =
+      comboSelections[
+        Number(group.id)
+      ] || {}
+
+    const selectedTotal =
+      Object.values(
+        selections
+      ).reduce(
+        (
+          total,
+          value
+        ) =>
+          total +
+          Number(value || 0),
+        0
+      )
+
+    const requiredQuantity =
+      Number(
+        group.quantity || 0
+      )
+
+    if (
+      selectedTotal !==
+      requiredQuantity
+    ) {
+      alert(
+        `No grupo "${group.name}", escolha exatamente ${requiredQuantity} ${group.unit_type === "Ml" ? "ml" : "item(ns)"} .`
+      )
+      return
+    }
+
+    const allowedComponents =
+      comboComponents.filter(
+        (item: any) =>
+          Number(
+            item.combo_id
+          ) ===
+            Number(combo.id) &&
+          Number(
+            item.choice_group_id
+          ) ===
+            Number(group.id)
+      )
+
+    for (
+      const [
+        productId,
+        selectedQuantity,
+      ] of Object.entries(
+        selections
+      )
+    ) {
+      const quantity =
+        Number(
+          selectedQuantity || 0
+        )
+
+      if (
+        quantity <= 0
+      ) {
+        continue
+      }
+
+      const component =
+        allowedComponents.find(
+          (item: any) =>
+            Number(
+              item.product_id
+            ) ===
+            Number(productId)
+        )
+
+      const product =
+        products.find(
+          (item) =>
+            Number(item.id) ===
+            Number(productId)
+        )
+
+      if (
+        !component ||
+        !product
+      ) {
+        alert(
+          `Produto escolhido no grupo "${group.name}" não encontrado.`
+        )
+        return
+      }
+
+      let stockQuantity =
+        quantity
+
+      if (
+        group.unit_type ===
+        "Ml"
+      ) {
+        const volumeMl =
+          parseVolumeToMl(
+            product.volume
+          )
+
+        if (
+          volumeMl <= 0
+        ) {
+          alert(
+            `O produto ${product.name} precisa ter volume cadastrado para ser usado em ml.`
+          )
+          return
+        }
+
+        stockQuantity =
+          quantity /
+          volumeMl
+      }
+
+      stockItems.push({
+        id: product.id,
+        name: product.name,
+        quantity:
+          stockQuantity *
+          qtdCombos,
+        unitType:
+          group.unit_type,
+        choiceGroup:
+          group.name,
+      })
+
+      unitCost +=
+        Number(
+          product.purchasePrice || 0
+        ) *
+        stockQuantity
+    }
+  }
+
+  // AGRUPA PRODUTOS REPETIDOS
+  const groupedStock: Record<
+    number,
+    any
+  > = {}
+
+  stockItems.forEach(
+    (item) => {
+      if (
+        !groupedStock[item.id]
+      ) {
+        groupedStock[item.id] = {
+          ...item,
+          quantity: 0,
+        }
+      }
+
+      groupedStock[item.id]
+        .quantity +=
+        Number(
+          item.quantity || 0
+        )
+    }
+  )
+
+  const finalStockItems =
+    Object.values(
+      groupedStock
+    )
+
+  // CONFERE ESTOQUE
+  for (
+    const item of finalStockItems
+  ) {
+    const product =
+      products.find(
+        (product) =>
+          Number(product.id) ===
+          Number(item.id)
+      )
+
+    if (!product) {
+      continue
+    }
+
+    if (
+      Number(product.stock || 0) <
+      Number(item.quantity || 0)
+    ) {
+      alert(
+        `Estoque insuficiente para ${product.name}.\n\nDisponível: ${product.stock}\nNecessário: ${item.quantity}`
+      )
+      return
+    }
+  }
+
+  const unitPrice =
+    getComboSalePrice(combo)
+
+  if (
+    unitPrice <= 0
+  ) {
+    alert(
+      "Esse combo não possui preço cadastrado."
+    )
+    return
+  }
+
+  const total =
+    unitPrice *
+    qtdCombos
+
+  const profit =
+    (
+      unitPrice -
+      unitCost
+    ) *
+    qtdCombos
+
+  const selectedNames =
+    finalStockItems.map(
+      (item: any) =>
+        item.name
+    )
+
+  setCart([
+    ...cart,
+    {
+      type: "Combo",
+
+      id:
+        `combo-${combo.id}-${Date.now()}`,
+
+      comboId:
+        combo.id,
+
+      name:
+        combo.name,
+
+      displayName:
+        combo.name,
+
+      quantity:
+        qtdCombos,
+
+      saleType:
+        "Unidade",
+
+      stockQuantity:
+        0,
+
+      salePrice:
+        unitPrice,
+
+      purchasePrice:
+        unitCost,
+
+      total,
+
+      profit,
+
+      componentNames:
+        selectedNames,
+
+      stockItems:
+        finalStockItems,
+    },
+  ])
+
+  setSelectedComboId("")
+  setComboQuantity("1")
+  setComboSelections({})
+}
   function removeCartItem(
     index: number
   ) {
@@ -1537,15 +2145,60 @@ const previewProfit =
       return
     }
 
-    if (
-      payment === "Fiado" &&
-      !customer.trim()
-    ) {
-      alert(
-        "Informe o nome do cliente!"
-      )
-      return
-    }
+    if (payment === "Dois") {
+  const value1 = Number(
+    String(payment2Value).replace(",", ".") || 0
+  )
+
+  const value2 = Number(
+    String(payment3Value).replace(",", ".") || 0
+  )
+
+  if (!payment2 || !payment3) {
+    alert(
+      "Selecione as duas formas de pagamento."
+    )
+    return
+  }
+
+  if (value1 <= 0 || value2 <= 0) {
+    alert(
+      "Informe um valor válido para os dois pagamentos."
+    )
+    return
+  }
+
+  const totalPaid =
+    value1 + value2
+
+  if (
+    Math.abs(
+      totalPaid - finalTotal
+    ) > 0.01
+  ) {
+    alert(
+      `Os valores precisam somar exatamente o total da venda.\n\nTotal: R$ ${finalTotal.toFixed(
+        2
+      )}\nInformado: R$ ${totalPaid.toFixed(
+        2
+      )}`
+    )
+    return
+  }
+}
+   if (
+  (
+    payment === "Fiado" ||
+    payment2 === "Fiado" ||
+    payment3 === "Fiado"
+  ) &&
+  !customer.trim()
+) {
+  alert(
+    "Informe o nome do cliente!"
+  )
+  return
+}
 
     if (
       payment === "Dinheiro"
@@ -1858,13 +2511,21 @@ const previewProfit =
           customer.trim() ||
           null,
 
-        payment,
+        payment:
+  payment === "Dois"
+    ? `${payment2}: R$ ${Number(
+        String(payment2Value).replace(",", ".") || 0
+      ).toFixed(2)} + ${payment3}: R$ ${Number(
+        String(payment3Value).replace(",", ".") || 0
+      ).toFixed(2)}`
+    : payment,
 
-        status:
-          payment ===
-          "Fiado"
-            ? "Pendente"
-            : "Pago",
+status:
+  payment === "Fiado" ||
+  payment2 === "Fiado" ||
+  payment3 === "Fiado"
+    ? "Pendente"
+    : "Pago",
 
         change_amount:
           payment ===
@@ -1943,6 +2604,10 @@ const previewProfit =
       setCart([])
       setCustomer("")
       setPayment("")
+      setPayment2("")
+setPayment2Value("")
+setPayment3("")
+setPayment3Value("")
       setDiscount("")
       setAddition("")
       setCashGiven("")
@@ -2036,11 +2701,10 @@ const previewProfit =
   })
 
   const paidSales =
-    filteredSales.filter(
-      (sale) =>
-        sale.status ===
-        "Pago"
-    )
+  filteredSales.filter(
+    (sale) =>
+      getValorRecebido(sale) > 0
+  )
 const salesInPeriod = sales.filter((sale) => {
   if (!startDate && !endDate) return true
 
@@ -2221,7 +2885,7 @@ const searchedProductProfit =
             🛒 Nova venda
           </h2>
 
-          <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="grid grid-cols-3 gap-2 mt-4">
 
             <button
               onClick={() =>
@@ -2254,99 +2918,456 @@ const searchedProductProfit =
             >
               🥤 Copões
             </button>
-
+            <button
+  onClick={() => {
+    setSaleMode("Combo")
+    setSelectedComboId("")
+    setComboQuantity("1")
+    setComboSelections({})
+  }}
+  className={`py-2 rounded-lg font-semibold ${
+    saleMode === "Combo"
+      ? "bg-blue-800 text-white"
+      : "border"
+  }`}
+>
+  📦 Combos
+</button>
           </div>
 
-          {saleMode ===
-            "Produto" && (
-            <>
-              <input
-                className="border p-2 rounded w-full mt-4"
-                placeholder="Pesquisar produto..."
-                value={
-                  productSearch
-                }
-                onChange={(e) =>
-                  setProductSearch(
-                    e.target.value
-                  )
-                }
-              />
 
-              <div className="mt-2 max-h-48 overflow-auto border rounded">
+{saleMode === "Combo" && (
+  <div className="mt-6 space-y-6">
 
-                {filteredProducts.map(
-                  (product) => (
-                    <button
-                      key={
-                        product.id
-                      }
-                      onClick={() => {
-                        setProductId(
-                          product.id.toString()
-                        )
+    {/* Seleção do combo */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                        setProductSearch(
-                          product.name +
-                            (product.brand
-                              ? ` • ${product.brand}`
-                              : "") +
-                            (product.flavor
-                              ? ` • ${product.flavor}`
-                              : "") +
-                            (product.volume
-                              ? ` • ${product.volume}`
-                              : "")
-                        )
-                      }}
-                      className="block w-full text-left p-2 hover:bg-gray-100"
+      <div>
+        <label className="block text-sm font-semibold mb-2">
+          Combo
+        </label>
+
+        <select
+          className="border p-3 rounded-lg w-full"
+          value={selectedComboId}
+          onChange={(e) => {
+            setSelectedComboId(e.target.value)
+            setComboQuantity("1")
+            setComboSelections({})
+          }}
+        >
+          <option value="">
+            Selecione o Combo
+          </option>
+
+          {combos.map((combo) => (
+            <option
+              key={combo.id}
+              value={combo.id}
+            >
+              {combo.name} — R${" "}
+              {getComboSalePrice(combo).toFixed(2)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedComboId && (
+        <div>
+          <label className="block text-sm font-semibold mb-2">
+            Quantidade de Combos
+          </label>
+
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={comboQuantity}
+            onChange={(e) =>
+              setComboQuantity(e.target.value)
+            }
+            className="border p-3 rounded-lg w-full"
+          />
+        </div>
+      )}
+
+    </div>
+
+    {selectedComboId && (
+      <div className="space-y-6">
+
+        {/* Componentes fixos */}
+        {comboComponents
+          .filter(
+            (component: any) =>
+              Number(component.combo_id) ===
+                Number(selectedComboId) &&
+              !component.choice_group_id
+          )
+          .length > 0 && (
+          <div className="border rounded-xl p-5 bg-gray-50">
+
+            <p className="font-semibold text-lg mb-4">
+              📦 Componentes fixos
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+
+              {comboComponents
+                .filter(
+                  (component: any) =>
+                    Number(component.combo_id) ===
+                      Number(selectedComboId) &&
+                    !component.choice_group_id
+                )
+                .map((component: any) => {
+
+                  const product =
+                    products.find(
+                      (item) =>
+                        Number(item.id) ===
+                        Number(component.product_id)
+                    )
+
+                  if (!product) {
+                    return null
+                  }
+
+                  return (
+                    <div
+                      key={component.id}
+                      className="border rounded-lg p-4 bg-white"
                     >
-                      {product.name}
+                      <p className="font-semibold">
+                        {product.name}
+                      </p>
 
-                      {product.brand &&
-                        ` • ${product.brand}`}
+                      {product.flavor && (
+                        <p className="text-sm text-gray-500">
+                          {product.flavor}
+                        </p>
+                      )}
 
-                      {product.flavor &&
-                        ` • ${product.flavor}`}
+                      {product.volume && (
+                        <p className="text-sm text-gray-500">
+                          {product.volume}
+                        </p>
+                      )}
 
-                      {product.volume &&
-                        ` • ${product.volume}`}
-                    </button>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Quantidade:{" "}
+                        {component.quantity}{" "}
+                        {component.unit_type === "Ml"
+                          ? "ml"
+                          : component.unit_type === "Dose"
+                          ? "dose(s)"
+                          : "unidade(s)"}
+                      </p>
+                    </div>
                   )
-                )}
+                })}
 
+            </div>
+          </div>
+        )}
+
+        {/* Grupos de escolha */}
+        {comboChoiceGroups
+          .filter(
+            (group: any) =>
+              Number(group.combo_id) ===
+              Number(selectedComboId)
+          )
+          .map((group: any) => {
+
+            const allowedProducts =
+              comboComponents.filter(
+                (component: any) =>
+                  Number(component.combo_id) ===
+                    Number(selectedComboId) &&
+                  Number(component.choice_group_id) ===
+                    Number(group.id)
+              )
+
+            return (
+              <div
+                key={group.id}
+                className="border rounded-xl p-5 bg-blue-50"
+              >
+
+                <div className="mb-4">
+                  <p className="font-semibold text-lg">
+                    🧊 {group.name}
+                  </p>
+
+                  <p className="text-sm text-gray-500 mt-1">
+                    Escolha {group.quantity}{" "}
+                    {group.unit_type === "Ml"
+                      ? "ml"
+                      : "item(ns)"}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+                  {allowedProducts.map(
+                    (component: any) => {
+
+                      const product =
+                        products.find(
+                          (item) =>
+                            Number(item.id) ===
+                            Number(component.product_id)
+                        )
+
+                      if (!product) {
+                        return null
+                      }
+
+                      const currentValue =
+                        comboSelections[
+                          Number(group.id)
+                        ]?.[
+                          Number(product.id)
+                        ] || 0
+
+                      return (
+                        <div
+                          key={component.id}
+                          className="flex items-center justify-between gap-4 bg-white border rounded-lg p-4"
+                        >
+
+                          <div className="min-w-0">
+                            <p className="font-medium">
+                              {product.name}
+                            </p>
+
+                            {product.flavor && (
+                              <p className="text-sm text-gray-500">
+                                {product.flavor}
+                              </p>
+                            )}
+
+                            {product.volume && (
+                              <p className="text-sm text-gray-500">
+                                {product.volume}
+                              </p>
+                            )}
+
+                            <p className="text-xs text-gray-500 mt-1">
+                              Estoque: {product.stock}
+                            </p>
+                          </div>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            className="border p-2 rounded-lg w-24 shrink-0"
+                            value={currentValue}
+                            onChange={(e) => {
+                              const value =
+                                Number(
+                                  e.target.value || 0
+                                )
+
+                              setComboSelections(
+                                (previous) => ({
+                                  ...previous,
+
+                                  [group.id]: {
+                                    ...(previous[
+                                      group.id
+                                    ] || {}),
+
+                                    [product.id]:
+                                      value,
+                                  },
+                                })
+                              )
+                            }}
+                          />
+
+                        </div>
+                      )
+                    }
+                  )}
+
+                </div>
               </div>
+            )
+          })}
 
-              {productId && (
-                <select
-                  className="border p-2 rounded w-full mt-3"
+        {/* Resumo */}
+        <div className="border rounded-xl p-5 bg-gray-50">
+
+          <p className="font-semibold text-lg mb-4">
+            💰 Resumo do Combo
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <div className="bg-white border rounded-lg p-4">
+              <p className="text-sm text-gray-500">
+                Preço normal
+              </p>
+
+              <p className="font-semibold text-lg">
+                R${" "}
+                {Number(
+                  combos.find(
+                    (combo) =>
+                      Number(combo.id) ===
+                      Number(selectedComboId)
+                  )?.sale_price || 0
+                ).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="bg-white border rounded-lg p-4">
+              <p className="text-sm text-gray-500">
+                Preço madrugada
+              </p>
+
+              <p className="font-semibold text-lg">
+                R${" "}
+                {Number(
+                  combos.find(
+                    (combo) =>
+                      Number(combo.id) ===
+                      Number(selectedComboId)
+                  )?.night_sale_price || 0
+                ).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="bg-white border rounded-lg p-4">
+              <p className="text-sm text-gray-500">
+                Preço atual
+              </p>
+
+              <p className="font-bold text-xl text-blue-800">
+                R${" "}
+                {getComboSalePrice(
+                  combos.find(
+                    (combo) =>
+                      Number(combo.id) ===
+                      Number(selectedComboId)
+                  )
+                ).toFixed(2)}
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Botão */}
+        <button
+          onClick={addComboToCart}
+          className="w-full bg-green-700 hover:bg-green-800 text-white px-5 py-3 rounded-lg font-bold"
+        >
+          📦 Adicionar Combo ao carrinho
+        </button>
+
+      </div>
+    )}
+
+  </div>
+)}
+            
+
+          
+
+            {saleMode ===
+              "Produto" && (
+              <>
+                <input
+                  className="border p-2 rounded w-full mt-4"
+                  placeholder="Pesquisar produto..."
                   value={
-                    saleType
+                    productSearch
                   }
                   onChange={(e) =>
-                    setSaleType(
-                      e.target.value as
-                        | "Unidade"
-                        | "Fardo"
+                    setProductSearch(
+                      e.target.value
                     )
                   }
-                >
-                  <option value="Unidade">
-                    Venda por unidade
-                  </option>
+                />
 
-                  {products.find(
-                    (item) =>
-                      item.id ===
-                      Number(
-                        productId
-                      )
-                  )?.entryType ===
-                    "Fardo" && (
-                    <option value="Fardo">
-                      Venda por fardo
-                    </option>
+                <div className="mt-2 max-h-48 overflow-auto border rounded">
+
+                  {filteredProducts.map(
+                    (product) => (
+                      <button
+                        key={
+                          product.id
+                        }
+                        onClick={() => {
+                          setProductId(
+                            product.id.toString()
+                          )
+
+                          setProductSearch(
+                            product.name +
+                              (product.brand
+                                ? ` • ${product.brand}`
+                                : "") +
+                              (product.flavor
+                                ? ` • ${product.flavor}`
+                                : "") +
+                              (product.volume
+                                ? ` • ${product.volume}`
+                                : "")
+                          )
+                        }}
+                        className="block w-full text-left p-2 hover:bg-gray-100"
+                      >
+                        {product.name}
+
+                        {product.brand &&
+                          ` • ${product.brand}`}
+
+                        {product.flavor &&
+                          ` • ${product.flavor}`}
+
+                        {product.volume &&
+                          ` • ${product.volume}`}
+                      </button>
+                    )
                   )}
+
+                </div>
+
+                {productId && (
+                  <select
+                    className="border p-2 rounded w-full mt-3"
+                    value={
+                      saleType
+                    }
+                    onChange={(e) =>
+                      setSaleType(
+                        e.target.value as
+                          | "Unidade"
+                          | "Fardo"
+                      )
+                    }
+                  >
+                    <option value="Unidade">
+                      Venda por unidade
+                    </option>
+
+                    {products.find(
+                      (item) =>
+                        item.id ===
+                        Number(
+                          productId
+                        )
+                    )?.entryType ===
+                      "Fardo" && (
+                      <option value="Fardo">
+                        Venda por fardo
+                      </option>
+                    )}
 
                 </select>
               )}
@@ -3190,7 +4211,9 @@ const searchedProductProfit =
             <option value="">
               Forma de pagamento
             </option>
-
+<option value="Dois">
+  2 formas de pagamento
+</option>
             <option value="Pix">
               Pix
             </option>
@@ -3212,7 +4235,127 @@ const searchedProductProfit =
             </option>
 
           </select>
+{payment === "Dois" && (
+  <div className="mt-4 border rounded-lg p-4 bg-gray-50">
 
+    <p className="font-semibold">
+      💳 Pagamento dividido
+    </p>
+
+    <div className="mt-3">
+      <label className="block text-sm text-gray-600">
+        Primeira forma de pagamento
+      </label>
+
+      <select
+        className="border p-2 rounded w-full mt-1"
+        value={payment2}
+        onChange={(e) =>
+          setPayment2(e.target.value)
+        }
+      >
+        <option value="">
+          Selecione
+        </option>
+
+        <option value="Pix">
+          Pix
+        </option>
+
+        <option value="Dinheiro">
+          Dinheiro
+        </option>
+
+        <option value="Débito">
+          Cartão de débito
+        </option>
+
+        <option value="Crédito">
+          Cartão de crédito
+        </option>
+        <option value="Fiado">
+  Fiado
+</option>
+      </select>
+    </div>
+
+  
+
+<div className="mt-3">
+  <label className="block text-sm text-gray-600">
+    Valor da primeira forma
+  </label>
+
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    className="border p-2 rounded w-full mt-1"
+    placeholder="Ex.: 50,00"
+    value={payment2Value}
+    onChange={(e) =>
+      setPayment2Value(e.target.value)
+    }
+  />
+</div>
+
+<div className="mt-3">
+  <label className="block text-sm text-gray-600">
+    Segunda forma de pagamento
+  </label>
+
+  <select
+    className="border p-2 rounded w-full mt-1"
+    value={payment3}
+    onChange={(e) =>
+      setPayment3(e.target.value)
+    }
+  >
+    <option value="">
+      Selecione
+    </option>
+
+    <option value="Pix">
+      Pix
+    </option>
+
+    <option value="Dinheiro">
+      Dinheiro
+    </option>
+
+    <option value="Débito">
+      Cartão de débito
+    </option>
+
+    <option value="Crédito">
+      Cartão de crédito
+    </option>
+
+    <option value="Fiado">
+      Fiado
+    </option>
+  </select>
+</div>
+
+<div className="mt-3">
+  <label className="block text-sm text-gray-600">
+    Valor da segunda forma
+  </label>
+
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    className="border p-2 rounded w-full mt-1"
+    placeholder="Ex.: 30,00"
+    value={payment3Value}
+    onChange={(e) =>
+      setPayment3Value(e.target.value)
+    }
+  />
+</div>
+</div>
+)}
           {payment ===
             "Dinheiro" && (
             <div className="mt-4 border rounded-lg p-4 bg-gray-50">
@@ -3727,16 +4870,168 @@ const searchedProductProfit =
                 {selectedSale.products &&
                 selectedSale.products.length >
                   0 ? (
-                  selectedSale.products.map(
-                    (
-                      item: any,
-                      index: number
-                    ) => {
+                selectedSale.products.map(
+  (
+    item: any,
+    index: number
+  ) => {
 
-                      if (
-                        item.type ===
-                        "Copao"
-                      ) {
+    if (item.type === "Combo") {
+      return (
+        <div
+          key={`${item.id}-${index}`}
+          className="border rounded-xl p-4"
+        >
+
+          <div className="flex justify-between gap-4">
+
+            <div>
+
+              <p className="font-bold text-lg">
+                📦{" "}
+                {item.displayName ||
+                  item.name}
+              </p>
+
+              <p className="text-gray-500 mt-1">
+                {item.quantity} Combo(s)
+              </p>
+
+            </div>
+
+            <div className="text-right">
+
+              <p className="font-bold">
+                R${" "}
+                {Number(
+                  item.total || 0
+                ).toFixed(2)}
+              </p>
+
+            </div>
+
+          </div>
+
+          {Array.isArray(
+            item.componentNames
+          ) &&
+            item.componentNames.length > 0 && (
+              <div className="mt-4 border-t pt-4">
+
+                <p className="font-semibold">
+                  O que vai no combo
+                </p>
+
+                <div className="mt-2 space-y-1">
+
+                  {item.componentNames.map(
+                    (
+                      component: string,
+                      componentIndex: number
+                    ) => (
+                      <p
+                        key={componentIndex}
+                        className="text-gray-600"
+                      >
+                        • {component}
+                      </p>
+                    )
+                  )}
+
+                </div>
+
+              </div>
+            )}
+
+          {Array.isArray(
+            item.stockItems
+          ) &&
+            item.stockItems.length > 0 && (
+              <div className="mt-4 border-t pt-4">
+
+                <p className="font-semibold">
+                  Componentes consumidos
+                </p>
+
+                <div className="mt-2 space-y-1">
+
+                  {item.stockItems.map(
+                    (
+                      component: any,
+                      componentIndex: number
+                    ) => (
+                      <p
+                        key={componentIndex}
+                        className="text-gray-600"
+                      >
+                        • {component.name} ×{" "}
+                        {component.quantity}
+                      </p>
+                    )
+                  )}
+
+                </div>
+
+              </div>
+            )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+
+            <div className="bg-gray-50 rounded-lg p-3">
+
+              <p className="text-xs text-gray-500">
+                Preço
+              </p>
+
+              <p className="font-semibold">
+                R${" "}
+                {Number(
+                  item.salePrice || 0
+                ).toFixed(2)}
+              </p>
+
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3">
+
+              <p className="text-xs text-gray-500">
+                Custo
+              </p>
+
+              <p className="font-semibold">
+                R${" "}
+                {Number(
+                  item.purchasePrice || 0
+                ).toFixed(2)}
+              </p>
+
+            </div>
+
+            <div className="bg-green-50 rounded-lg p-3">
+
+              <p className="text-xs text-gray-500">
+                Lucro
+              </p>
+
+              <p className="font-bold text-green-700">
+                R${" "}
+                {Number(
+                  item.profit || 0
+                ).toFixed(2)}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+      )
+    }
+
+    if (
+      item.type ===
+      "Copao"
+    ) {
                         return (
                           <div
                             key={`${item.id}-${index}`}

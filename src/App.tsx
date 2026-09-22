@@ -19,6 +19,7 @@ import Relatorios from "./pages/Relatorios"
 import Configuracoes from "./pages/Configuracoes"
 import Fiados from "./pages/Fiados"
 import Copoes from "./pages/Copoes"
+import Combos from "./pages/Combos"
 
 function App() {
   const [session, setSession] = useState<any>(null)
@@ -71,6 +72,7 @@ function App() {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/produtos" element={<Produtos />} />
                   <Route path="/copoes" element={<Copoes />} />
+                  <Route path="/combos" element={<Combos />} />
                   <Route path="/vendas" element={<Vendas />} />
                   <Route path="/fiados" element={<Fiados />} />
                   <Route path="/caixa" element={<Caixa />} />

@@ -32,18 +32,52 @@ function Fiados() {
 
     setSales(data || [])
   }
+function getValorFiado(sale: any) {
+  const payment = String(sale.payment || "")
 
-  const pendingFiados = sales.filter(
-    (sale) =>
-      sale.payment === "Fiado" &&
-      sale.status === "Pendente"
-  )
+  // Venda dividida: pega somente a parte que ficou no fiado
+  if (payment.includes(" + ")) {
+    return payment
+      .split(" + ")
+      .reduce((total, part) => {
+        const [method, valueText] =
+          part.split(": R$ ")
 
-  const totalFiado = pendingFiados.reduce(
-    (total, sale) =>
-      total + Number(sale.total || 0),
-    0
-  )
+        if (
+          String(method).trim() !==
+          "Fiado"
+        ) {
+          return total
+        }
+
+        return (
+          total +
+          Number(
+            String(valueText || "0")
+              .replace(",", ".")
+          )
+        )
+      }, 0)
+  }
+
+  // Venda totalmente fiada
+  if (payment === "Fiado") {
+    return Number(sale.total || 0)
+  }
+
+  return 0
+}
+const pendingFiados = sales.filter(
+  (sale) =>
+    getValorFiado(sale) > 0 &&
+    sale.status === "Pendente"
+)
+
+const totalFiado = pendingFiados.reduce(
+  (total, sale) =>
+    total + getValorFiado(sale),
+  0
+)
 
   async function receiveFiado() {
     if (selectedId === null) {
@@ -116,11 +150,9 @@ function Fiados() {
     ============================================================
     */
 
-    const totalOriginal =
-      Number(
-        sale.total || 0
-      )
-
+   
+const valorFiado =
+  getValorFiado(sale)
     const frete =
       Number(
         sale.delivery_fee || 0
@@ -132,10 +164,10 @@ function Fiados() {
     */
 
     const valorProdutos =
-      Math.max(
-        0,
-        totalOriginal - frete
-      )
+  Math.max(
+    0,
+    valorFiado - frete
+  )
 
     const discountValue = Number(
       String(discount)
@@ -182,9 +214,10 @@ function Fiados() {
     O frete fica separado.
     */
 
-    const receivedTotal =
+  const receivedTotal =
   Math.max(
-    valorProdutos -
+    valorProdutos +
+      frete -
       discountValue +
       additionValue,
     0
@@ -600,10 +633,7 @@ setAddition("")
                 <div className="text-right">
 
                   <p className="font-bold">
-                    R${" "}
-                    {Number(
-                      sale.total || 0
-                    ).toFixed(2)}
+                   R$ {getValorFiado(sale).toFixed(2)}
                   </p>
 
                   <p className="text-red-600">
@@ -679,11 +709,8 @@ setAddition("")
             return null
           }
 
-          const originalTotal =
-            Number(
-              selectedSale.total ||
-                0
-            )
+         const originalTotal =
+  getValorFiado(selectedSale)
 
           const frete =
             Number(
@@ -708,12 +735,16 @@ setAddition("")
               ) || 0
             )
 
-          const receivedTotal =
-            Math.max(
-              valorProdutos -
-                discountValue,
-              0
-            )
+        const receivedTotal =
+  Math.max(
+    valorProdutos +
+      frete -
+      discountValue +
+      Number(
+        String(addition || "0").replace(",", ".")
+      ),
+    0
+  )
 
           return (
             <div className="mt-6 bg-white p-6 rounded-xl shadow">

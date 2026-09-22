@@ -7,6 +7,7 @@ import {
   Settings,
   FileText,
   GlassWater,
+  Boxes,
 } from "lucide-react"
 
 import { Link } from "react-router-dom"
@@ -43,7 +44,13 @@ function Sidebar() {
           <GlassWater size={20} />
           Copões
         </Link>
-
+<Link
+  to="/combos"
+  className="flex items-center gap-3"
+>
+  <Boxes size={20} />
+  Combos
+</Link>
         <Link
           to="/vendas"
           className="flex items-center gap-3"
