@@ -1019,43 +1019,6 @@ const getValorRecebido = (
   ============================================================
   */
 
-  const calcularLucro = (
-    sale: any
-  ) => {
-    if (
-      sale.payment !==
-      "Fiado"
-    ) {
-      return Number(
-        sale.profit || 0
-      )
-    }
-
-    if (
-      !Array.isArray(
-        sale.products
-      )
-    ) {
-      return Number(
-        sale.profit || 0
-      )
-    }
-
-   const custoTotal =
-  getCustoProdutos(
-    sale
-  )
-
-const valorRecebidoProdutos =
-  Number(
-    sale.received_total || 0
-  )
-
-return (
-  valorRecebidoProdutos -
-  custoTotal
-)
-  }
 
   /*
   ============================================================
