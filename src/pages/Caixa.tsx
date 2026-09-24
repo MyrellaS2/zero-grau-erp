@@ -5218,7 +5218,23 @@ if (caixaAberto && caixaAberto.length > 0) {
       Valor retirado do caixa durante o período.
     </p>
   </div>
+  <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-xl">
+    <p className="text-yellow-700 font-semibold">
+      💵 Valor restante para produtos
+    </p>
 
+    <p className="text-2xl font-bold text-yellow-800 mt-2">
+      R${" "}
+      {(
+        closedCashDetails.valorProdutosHistorico -
+        closedCashDetails.totalSaidasHistorico
+      ).toFixed(2)}
+    </p>
+
+    <p className="text-sm text-yellow-700 mt-2">
+      Valor para produtos após descontar o total de saídas.
+    </p>
+  </div>
   <div className="bg-purple-50 border border-purple-200 p-5 rounded-xl">
     <p className="text-purple-700 font-semibold">
       💰 Saldo disponível final

@@ -72,7 +72,23 @@ const pendingFiados = sales.filter(
     getValorFiado(sale) > 0 &&
     sale.status === "Pendente"
 )
+const paidFiados = sales
+  .filter(
+    (sale) =>
+      getValorFiado(sale) > 0 &&
+      sale.status === "Pago"
+  )
+  .sort((a, b) => {
+    const dateA = a.received_at
+      ? new Date(a.received_at).getTime()
+      : 0
 
+    const dateB = b.received_at
+      ? new Date(b.received_at).getTime()
+      : 0
+
+    return dateB - dateA
+  })
 const totalFiado = pendingFiados.reduce(
   (total, sale) =>
     total + getValorFiado(sale),
@@ -168,6 +184,11 @@ const valorFiado =
     0,
     valorFiado - frete
   )
+  const originalDiscountValue =
+  Number(sale.discount || 0)
+
+const originalAdditionValue =
+  Number(sale.addition || 0)
 
     const discountValue = Number(
       String(discount)
@@ -237,15 +258,22 @@ const valorFiado =
     } = await supabase
       .from("sales")
       .update({
-        status: "Pago",
+  status: "Pago",
 
-        discount:
-          discountValue,
-          addition:
-  additionValue,
+  discount:
+    originalDiscountValue,
 
-        received_total:
-          receivedTotal,
+  addition:
+    originalAdditionValue,
+
+  received_total:
+    receivedTotal,
+
+  received_discount:
+    discountValue,
+
+  received_addition:
+    additionValue,
 
         received_at:
           new Date().toISOString(),
@@ -689,259 +717,341 @@ setAddition("")
               Nenhum fiado pendente.
             </p>
           )}
+{paidFiados.length > 0 && (
+  <div className="mt-10 pt-6 border-t">
+    <h2 className="font-bold text-lg">
+      ✅ Fiados baixados
+    </h2>
 
+    <div className="mt-4 space-y-4">
+      {paidFiados.map((sale) => (
+        <div
+          key={sale.id}
+          className="border rounded-lg p-4 flex justify-between"
+        >
+          <div>
+            <p className="font-bold">
+              {sale.customer ||
+                "Cliente não informado"}
+            </p>
+
+            <p className="text-gray-500">
+              {sale.products?.length
+                ? sale.products
+                    .map(
+                      (item: any) =>
+                        `${item.displayName || item.name} (${item.quantity})`
+                    )
+                    .join(", ")
+                : "Produtos não informados"}
+            </p>
+
+            <p className="text-gray-500">
+              📅 Baixado em:{" "}
+              {sale.received_at
+                ? new Intl.DateTimeFormat(
+                    "pt-BR",
+                    {
+                      timeZone:
+                        "America/Sao_Paulo",
+                      dateStyle: "short",
+                      timeStyle: "medium",
+                    }
+                  ).format(
+                    new Date(
+                      sale.received_at
+                    )
+                  )
+                : "-"}
+            </p>
+          </div>
+
+          <div className="text-right">
+            <p className="font-bold">
+              R$ {Number(
+                sale.received_total || 0
+              ).toFixed(2)}
+            </p>
+
+            <p className="text-green-600">
+              Pago
+            </p>
+
+            <div className="flex flex-wrap justify-end gap-2 mt-2">
+              <button
+                onClick={() =>
+                  setSelectedFiado(sale)
+                }
+                className="bg-blue-700 text-white px-3 py-1 rounded"
+              >
+                Ver detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
         </div>
 
       </div>
 
-      {/* RECEBIMENTO */}
+           {/* MODAL DE RECEBIMENTO */}
 
       {selectedId !== null &&
         (() => {
           const selectedSale =
             sales.find(
               (sale) =>
-                sale.id ===
-                selectedId
+                sale.id === selectedId
             )
 
           if (!selectedSale) {
             return null
           }
 
-         const originalTotal =
-  getValorFiado(selectedSale)
+          const originalTotal =
+            getValorFiado(selectedSale)
 
           const frete =
             Number(
-              selectedSale.delivery_fee ||
-                0
+              selectedSale.delivery_fee || 0
             )
 
           const valorProdutos =
             Math.max(
               0,
-              originalTotal -
-                frete
+              originalTotal - frete
             )
 
           const discountValue =
             Number(
-              String(
-                discount
-              ).replace(
-                ",",
-                "."
-              ) || 0
+              String(discount)
+                .replace(",", ".") || 0
             )
 
-        const receivedTotal =
-  Math.max(
-    valorProdutos +
-      frete -
-      discountValue +
-      Number(
-        String(addition || "0").replace(",", ".")
-      ),
-    0
-  )
+          const additionValue =
+            Number(
+              String(addition)
+                .replace(",", ".") || 0
+            )
+
+          const receivedTotal =
+            Math.max(
+              valorProdutos +
+                frete -
+                discountValue +
+                additionValue,
+              0
+            )
 
           return (
-            <div className="mt-6 bg-white p-6 rounded-xl shadow">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
 
-              <div className="flex justify-between items-center">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
 
-                <div>
+                {/* CABEÇALHO */}
 
-                  <h2 className="font-bold text-lg">
-                    💰 Receber pagamento
-                  </h2>
+                <div className="p-6 border-b flex justify-between items-center">
 
-                  <p className="text-gray-500 mt-1">
-                    {selectedSale.customer ||
-                      "Cliente não informado"}
-                  </p>
+                  <div>
+                    <h2 className="text-xl font-bold">
+                      💰 Dar baixa no fiado
+                    </h2>
 
-                </div>
+                    <p className="text-gray-500 mt-1">
+                      {selectedSale.customer ||
+                        "Cliente não informado"}
+                    </p>
+                  </div>
 
-                <button
-                  onClick={
-                    closeReceive
-                  }
-                  className="text-gray-500 text-xl"
-                >
-                  ✕
-                </button>
-
-              </div>
-
-              <div className="mt-5 grid grid-cols-1 md:grid-cols-5 gap-4">
-
-                <div className="bg-gray-50 p-4 rounded-lg">
-
-                  <p className="text-sm text-gray-500">
-                    Produtos
-                  </p>
-
-                  <p className="text-xl font-bold">
-                    R${" "}
-                    {valorProdutos.toFixed(
-                      2
-                    )}
-                  </p>
+                  <button
+                    onClick={closeReceive}
+                    disabled={receiving}
+                    className="text-gray-500 text-2xl"
+                  >
+                    ✕
+                  </button>
 
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg">
+                {/* CONTEÚDO */}
 
-                  <p className="text-sm text-gray-500">
-                    Frete
-                  </p>
+                <div className="p-6">
 
-                  <p className="text-xl font-bold">
-                    R${" "}
-                    {frete.toFixed(
-                      2
-                    )}
-                  </p>
+                  <div className="mb-5 bg-gray-50 p-4 rounded-xl">
+
+                    <p className="text-sm text-gray-500">
+                      Fiado
+                    </p>
+
+                    <p className="text-lg font-bold">
+                      {selectedSale.products?.length
+                        ? selectedSale.products
+                            .map(
+                              (item: any) =>
+                                `${item.displayName || item.name} (${item.quantity})`
+                            )
+                            .join(", ")
+                        : "Produtos não informados"}
+                    </p>
+
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <div className="bg-gray-50 p-4 rounded-xl">
+
+                      <p className="text-sm text-gray-500">
+                        Produtos
+                      </p>
+
+                      <p className="text-xl font-bold">
+                        R$ {valorProdutos.toFixed(2)}
+                      </p>
+
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-xl">
+
+                      <p className="text-sm text-gray-500">
+                        Frete
+                      </p>
+
+                      <p className="text-xl font-bold">
+                        R$ {frete.toFixed(2)}
+                      </p>
+
+                    </div>
+
+                    <div className="bg-red-50 p-4 rounded-xl">
+
+                      <p className="text-sm text-gray-500">
+                        Desconto
+                      </p>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={discount}
+                        onChange={(e) =>
+                          setDiscount(
+                            e.target.value
+                          )
+                        }
+                        placeholder="0,00"
+                        className="border p-2 rounded w-full mt-1"
+                      />
+
+                    </div>
+
+                    <div className="bg-blue-50 p-4 rounded-xl">
+
+                      <p className="text-sm text-gray-500">
+                        Acréscimo
+                      </p>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={addition}
+                        onChange={(e) =>
+                          setAddition(
+                            e.target.value
+                          )
+                        }
+                        placeholder="0,00"
+                        className="border p-2 rounded w-full mt-1"
+                      />
+
+                    </div>
+
+                  </div>
+
+                  {/* VALOR A RECEBER */}
+
+                  <div className="mt-5 bg-green-50 border border-green-200 p-5 rounded-xl">
+
+                    <p className="text-sm text-green-700">
+                      Valor a receber
+                    </p>
+
+                    <p className="text-3xl font-bold text-green-700">
+                      R$ {receivedTotal.toFixed(2)}
+                    </p>
+
+                  </div>
+
+                  {/* FORMA DE PAGAMENTO */}
+
+                  <div className="mt-5">
+
+                    <p className="font-medium mb-2">
+                      Forma de recebimento
+                    </p>
+
+                    <select
+                      className="border p-3 rounded-xl w-full"
+                      value={payment}
+                      onChange={(e) =>
+                        setPayment(
+                          e.target.value
+                        )
+                      }
+                    >
+
+                      <option value="">
+                        Forma de recebimento
+                      </option>
+
+                      <option value="Pix">
+                        Pix
+                      </option>
+
+                      <option value="Dinheiro">
+                        Dinheiro
+                      </option>
+
+                      <option value="Débito">
+                        Cartão de débito
+                      </option>
+
+                      <option value="Crédito">
+                        Cartão de crédito
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                  {/* BOTÕES */}
+
+                  <div className="mt-6 flex justify-end gap-3">
+
+                    <button
+                      onClick={closeReceive}
+                      disabled={receiving}
+                      className="bg-gray-500 text-white px-5 py-2 rounded-xl disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      onClick={receiveFiado}
+                      disabled={receiving}
+                      className="bg-green-600 text-white px-5 py-2 rounded-xl disabled:opacity-50"
+                    >
+                      {receiving
+                        ? "Recebendo..."
+                        : "Confirmar recebimento"}
+                    </button>
+
+                  </div>
 
                 </div>
-
-                <div className="bg-red-50 p-4 rounded-lg">
-
-                  <p className="text-sm text-gray-500">
-                    Desconto
-                  </p>
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={
-                      discount
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setDiscount(
-                        e.target.value
-                      )
-                    }
-                    placeholder="0,00"
-                    className="border p-2 rounded w-full mt-1"
-                  />
-
-                </div>
-                <div className="bg-blue-50 p-4 rounded-lg">
-
-  <p className="text-sm text-gray-500">
-    Acréscimo
-  </p>
-
-  <input
-    type="number"
-    min="0"
-    step="0.01"
-    value={addition}
-    onChange={(e) =>
-      setAddition(
-        e.target.value
-      )
-    }
-    placeholder="0,00"
-    className="border p-2 rounded w-full mt-1"
-  />
-
-</div>
-
-                <div className="bg-green-50 p-4 rounded-lg">
-
-                  <p className="text-sm text-gray-500">
-                    Valor a receber
-                  </p>
-
-                  <p className="text-xl font-bold text-green-700">
-                    R${" "}
-                    {receivedTotal.toFixed(
-                      2
-                    )}
-                  </p>
-
-                </div>
-
-              </div>
-
-              <div className="mt-5">
-
-                <p className="font-medium mb-2">
-                  Forma de recebimento
-                </p>
-
-                <select
-                  className="border p-2 rounded w-full"
-                  value={
-                    payment
-                  }
-                  onChange={(
-                    e
-                  ) =>
-                    setPayment(
-                      e.target.value
-                    )
-                  }
-                >
-
-                  <option value="">
-                    Forma de recebimento
-                  </option>
-
-                  <option value="Pix">
-                    Pix
-                  </option>
-
-                  <option value="Dinheiro">
-                    Dinheiro
-                  </option>
-
-                  <option value="Débito">
-                    Cartão de débito
-                  </option>
-
-                  <option value="Crédito">
-                    Cartão de crédito
-                  </option>
-
-                </select>
-
-              </div>
-
-              <div className="mt-5 flex gap-3">
-
-                <button
-                  onClick={
-                    receiveFiado
-                  }
-                  disabled={
-                    receiving
-                  }
-                  className="bg-green-600 text-white px-5 py-2 rounded disabled:opacity-50"
-                >
-                  {receiving
-                    ? "Recebendo..."
-                    : "Confirmar recebimento"}
-                </button>
-
-                <button
-                  onClick={
-                    closeReceive
-                  }
-                  disabled={
-                    receiving
-                  }
-                  className="bg-gray-500 text-white px-5 py-2 rounded disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
 
               </div>
 
@@ -986,28 +1096,57 @@ setAddition("")
 
             <div className="p-6">
 
-              <p className="text-gray-500 mb-4">
-                Data:{" "}
-                {selectedFiado.date
-                  ? new Intl.DateTimeFormat(
-                      "pt-BR",
-                      {
-                        timeZone:
-                          "America/Sao_Paulo",
+           <div className="text-gray-500 mb-4 space-y-1">
 
-                        dateStyle:
-                          "short",
+  <p>
+    📅 Data da venda:{" "}
+    {selectedFiado.date
+      ? new Intl.DateTimeFormat(
+          "pt-BR",
+          {
+            timeZone:
+              "America/Sao_Paulo",
 
-                        timeStyle:
-                          "medium",
-                      }
-                    ).format(
-                      new Date(
-                        selectedFiado.date
-                      )
-                    )
-                  : "-"}
-              </p>
+            dateStyle:
+              "short",
+
+            timeStyle:
+              "medium",
+          }
+        ).format(
+          new Date(
+            selectedFiado.date
+          )
+        )
+      : "-"}
+  </p>
+
+  {selectedFiado.status === "Pago" && (
+    <p>
+      💰 Baixado em:{" "}
+      {selectedFiado.received_at
+        ? new Intl.DateTimeFormat(
+            "pt-BR",
+            {
+              timeZone:
+                "America/Sao_Paulo",
+
+              dateStyle:
+                "short",
+
+              timeStyle:
+                "medium",
+            }
+          ).format(
+            new Date(
+              selectedFiado.received_at
+            )
+          )
+        : "-"}
+    </p>
+  )}
+
+</div>
 
               <h3 className="font-bold text-lg mb-3">
                 Produtos
@@ -1143,114 +1282,165 @@ setAddition("")
 
               </div>
 
-              <div className="border-t mt-6 pt-4 space-y-2">
+             <div className="border-t mt-6 pt-4 space-y-3">
 
-                <div className="flex justify-between">
+  <h3 className="font-bold text-lg mb-3">
+    💰 Resumo financeiro
+  </h3>
 
-                  <span>
-                    Valor dos produtos
-                  </span>
+  <div className="flex justify-between">
+    <span>Valor original da venda</span>
 
-                  <span className="font-bold">
-                    R${" "}
-                    {(
-                      Number(
-                        selectedFiado.total ||
-                          0
-                      ) -
-                      Number(
-                        selectedFiado.delivery_fee ||
-                          0
-                      )
-                    ).toFixed(2)}
-                  </span>
+    <span className="font-bold">
+      R${" "}
+      {Number(
+        selectedFiado.total || 0
+      ).toFixed(2)}
+    </span>
+  </div>
 
-                </div>
+  {Number(
+    selectedFiado.delivery_fee || 0
+  ) > 0 && (
+    <div className="flex justify-between">
+      <span>Frete</span>
 
-                {Number(
-                  selectedFiado.delivery_fee ||
-                    0
-                ) > 0 && (
-                  <div className="flex justify-between">
+      <span className="font-bold">
+        R${" "}
+        {Number(
+          selectedFiado.delivery_fee || 0
+        ).toFixed(2)}
+      </span>
+    </div>
+  )}
 
-                    <span>
-                      Frete
-                    </span>
+  <div className="border-t pt-3 mt-3">
 
-                    <span className="font-bold">
-                      R${" "}
-                      {Number(
-                        selectedFiado.delivery_fee ||
-                          0
-                      ).toFixed(2)}
-                    </span>
+  <p className="font-bold mb-2">
+    🧾 Ajustes da venda original
+  </p>
 
-                  </div>
-                )}
+  <div className="flex justify-between">
+    <span>Desconto na venda</span>
 
-                {Number(
-                  selectedFiado.discount ||
-                    0
-                ) > 0 && (
-                  <>
-                    <div className="flex justify-between text-red-600">
+    <span className="font-bold text-red-600">
+      - R${" "}
+      {Number(
+        selectedFiado.discount || 0
+      ).toFixed(2)}
+    </span>
+  </div>
 
-                      <span>
-                        Desconto
-                      </span>
+  <div className="flex justify-between">
+    <span>Acréscimo na venda</span>
 
-                      <span className="font-bold">
-                        - R${" "}
-                        {Number(
-                          selectedFiado.discount ||
-                            0
-                        ).toFixed(2)}
-                      </span>
+    <span className="font-bold text-blue-600">
+      + R${" "}
+      {Number(
+        selectedFiado.addition || 0
+      ).toFixed(2)}
+    </span>
+  </div>
 
-                    </div>
+</div>
 
-                    <div className="flex justify-between">
+{selectedFiado.status === "Pago" && (
+  <div className="border-t pt-3 mt-3">
 
-                      <span>
-                        Valor recebido
-                      </span>
+    <p className="font-bold mb-2">
+      💰 Ajustes na baixa do fiado
+    </p>
 
-                      <span className="font-bold text-green-700">
-                        R${" "}
-                        {Number(
-                          selectedFiado.received_total ||
-                            0
-                        ).toFixed(2)}
-                      </span>
+    <div className="flex justify-between">
+      <span>Desconto ao pagar</span>
 
-                    </div>
-                  </>
-                )}
+      <span className="font-bold text-red-600">
+        - R${" "}
+        {Number(
+          selectedFiado.received_discount || 0
+        ).toFixed(2)}
+      </span>
+    </div>
 
-                {Number(
-                  selectedFiado.discount ||
-                    0
-                ) === 0 &&
-                  selectedFiado.status ===
-                    "Pago" && (
-                    <div className="flex justify-between">
+    <div className="flex justify-between">
+      <span>Acréscimo ao pagar</span>
 
-                      <span>
-                        Valor recebido
-                      </span>
+      <span className="font-bold text-blue-600">
+        + R${" "}
+        {Number(
+          selectedFiado.received_addition || 0
+        ).toFixed(2)}
+      </span>
+    </div>
 
-                      <span className="font-bold text-green-700">
-                        R${" "}
-                        {Number(
-                          selectedFiado.received_total ||
-                            0
-                        ).toFixed(2)}
-                      </span>
+  </div>
+)}
 
-                    </div>
-                  )}
+  <div className="flex justify-between border-t pt-3">
+    <span>Valor recebido</span>
 
-              </div>
+    <span className="font-bold text-green-700">
+      R${" "}
+      {Number(
+        selectedFiado.received_total || 0
+      ).toFixed(2)}
+    </span>
+  </div>
+
+  {selectedFiado.status === "Pago" && (
+    <>
+      <div className="flex justify-between">
+        <span>Forma de pagamento</span>
+
+        <span className="font-bold">
+          {selectedFiado.received_payment ||
+            "-"}
+        </span>
+      </div>
+
+      <div className="flex justify-between">
+        <span>Baixado em</span>
+
+        <span className="font-bold">
+          {selectedFiado.received_at
+            ? new Intl.DateTimeFormat(
+                "pt-BR",
+                {
+                  timeZone:
+                    "America/Sao_Paulo",
+                  dateStyle: "short",
+                  timeStyle: "medium",
+                }
+              ).format(
+                new Date(
+                  selectedFiado.received_at
+                )
+              )
+            : "-"}
+        </span>
+      </div>
+
+      <div className="flex justify-between">
+        <span>Status</span>
+
+        <span className="font-bold text-green-600">
+          ✅ Pago
+        </span>
+      </div>
+
+      <div className="flex justify-between">
+        <span>Caixa da baixa</span>
+
+        <span className="font-bold">
+          {selectedFiado.received_cash_register_id
+            ? `Caixa #${selectedFiado.received_cash_register_id}`
+            : "-"}
+        </span>
+      </div>
+    </>
+  )}
+
+</div>
 
             </div>
 
