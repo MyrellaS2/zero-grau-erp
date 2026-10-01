@@ -11,6 +11,7 @@ import { supabase } from "./lib/supabase"
 import MainLayout from "./layouts/MainLayout"
 
 import Login from "./pages/Login"
+import ResetPassword from "./pages/ResetPassword"
 import Dashboard from "./pages/Dashboard"
 import Produtos from "./pages/Produtos"
 import Vendas from "./pages/Vendas"
@@ -39,9 +40,11 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session)
+      }
+    )
 
     return () => {
       subscription.unsubscribe()
@@ -51,43 +54,94 @@ function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Carregando...</p>
+        <p className="text-gray-500">
+          Carregando...
+        </p>
       </div>
     )
   }
 
   return (
     <BrowserRouter>
-      {!session ? (
-        <Routes>
-          <Route path="*" element={<Login />} />
-        </Routes>
-      ) : (
-        <Routes>
+      <Routes>
+
+        <Route
+          path="/reset-password"
+          element={<ResetPassword />}
+        />
+
+        {!session ? (
+          <Route
+            path="*"
+            element={<Login />}
+          />
+        ) : (
           <Route
             path="/*"
             element={
               <MainLayout>
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/produtos" element={<Produtos />} />
-                  <Route path="/copoes" element={<Copoes />} />
-                  <Route path="/combos" element={<Combos />} />
-                  <Route path="/vendas" element={<Vendas />} />
-                  <Route path="/fiados" element={<Fiados />} />
-                  <Route path="/caixa" element={<Caixa />} />
-                  <Route path="/relatorios" element={<Relatorios />} />
-                  <Route path="/configuracoes" element={<Configuracoes />} />
+                  <Route
+                    path="/"
+                    element={<Dashboard />}
+                  />
+
+                  <Route
+                    path="/produtos"
+                    element={<Produtos />}
+                  />
+
+                  <Route
+                    path="/copoes"
+                    element={<Copoes />}
+                  />
+
+                  <Route
+                    path="/combos"
+                    element={<Combos />}
+                  />
+
+                  <Route
+                    path="/vendas"
+                    element={<Vendas />}
+                  />
+
+                  <Route
+                    path="/fiados"
+                    element={<Fiados />}
+                  />
+
+                  <Route
+                    path="/caixa"
+                    element={<Caixa />}
+                  />
+
+                  <Route
+                    path="/relatorios"
+                    element={<Relatorios />}
+                  />
+
+                  <Route
+                    path="/configuracoes"
+                    element={<Configuracoes />}
+                  />
+
                   <Route
                     path="*"
-                    element={<Navigate to="/" replace />}
+                    element={
+                      <Navigate
+                        to="/"
+                        replace
+                      />
+                    }
                   />
                 </Routes>
               </MainLayout>
             }
           />
-        </Routes>
-      )}
+        )}
+
+      </Routes>
     </BrowserRouter>
   )
 }
