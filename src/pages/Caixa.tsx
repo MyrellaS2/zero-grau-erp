@@ -1971,8 +1971,8 @@ async function iniciarConferenciaManual() {
   } = await supabase
     .from("products")
     .select(
-      "id, name, flavor, volume, stock"
-    )
+  "id, name, flavor, volume, stock, open_container_ml, open_container_capacity_ml"
+)
     .order("name", {
       ascending: true,
     })
@@ -2220,7 +2220,7 @@ async function confirmarConferenciaManual() {
     } = await supabase
       .from("products")
       .select(
-  "id, name, flavor, volume, stock"
+  "id, name, flavor, volume, stock, open_container_ml, open_container_capacity_ml"
 )
   
       .order(
@@ -5526,6 +5526,18 @@ if (caixaAberto && caixaAberto.length > 0) {
                                 {estoqueSistema}
                               </strong>
                             </p>
+
+<p className="text-gray-500 text-sm mt-1">
+  Recipiente aberto:{" "}
+  <strong>
+    {Number(product.open_container_ml || 0)} ml
+  </strong>
+  {Number(product.open_container_capacity_ml || 0) > 0 && (
+    <span>
+      {" "}de {Number(product.open_container_capacity_ml)} ml
+    </span>
+  )}
+</p>
 
                           </div>
 

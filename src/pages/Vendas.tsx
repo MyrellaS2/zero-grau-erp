@@ -1063,29 +1063,27 @@ function productMatchesSearch(item: any, search: string) {
         stockQuantityPerCopao *
         qtdCopoes
 
-      stockItems.push({
-        id:
-          product.id,
+    stockItems.push({
+  id: product.id,
+  name: product.name,
 
-        name:
-          product.name,
+  // Ml não desconta unidades fechadas.
+  quantity:
+    component.unit_type === "Ml"
+      ? 0
+      : totalStockQuantity,
 
-        quantity:
-          totalStockQuantity,
+  // Quantidade real consumida do recipiente aberto.
+  mlQuantity:
+    component.unit_type === "Ml"
+      ? quantityPerCopao * qtdCopoes
+      : 0,
 
-        quantityPerCopao:
-          quantityPerCopao,
-
-        unitType:
-          component.unit_type,
-
-        role:
-          component.role,
-
-        productVolume:
-          product.volume ||
-          null,
-      })
+  quantityPerCopao,
+  unitType: component.unit_type,
+  role: component.role,
+  productVolume: product.volume || null,
+})
 
       unitCost +=
         Number(
@@ -1146,7 +1144,16 @@ function productMatchesSearch(item: any, search: string) {
           doseProduct.name,
 
         quantity:
-          extraDoseQuantity,
+  doseComponent.unit_type === "Ml"
+    ? 0
+    : extraDoseQuantity,
+
+mlQuantity:
+  doseComponent.unit_type === "Ml"
+    ? Number(doseComponent.quantity || 0) *
+      qtdExtras *
+      qtdCopoes
+    : 0,
 
         quantityPerCopao:
           qtdExtras,
@@ -1166,63 +1173,50 @@ function productMatchesSearch(item: any, search: string) {
         qtdExtras
     }
 
-    const requiredStock: Record<
-      number,
-      number
-    > = {}
+  const requiredStock: Record<number, number> = {}
+const requiredMl: Record<number, number> = {}
 
-    stockItems.forEach(
-      (item) => {
-        requiredStock[
-          item.id
-        ] =
-          (
-            requiredStock[
-              item.id
-            ] || 0
-          ) +
-          Number(
-            item.quantity || 0
-          )
-      }
+stockItems.forEach((item) => {
+  const id = Number(item.id)
+
+  if (item.unitType === "Ml") {
+    requiredMl[id] =
+      (requiredMl[id] || 0) +
+      Number(item.mlQuantity || 0)
+  } else {
+    requiredStock[id] =
+      (requiredStock[id] || 0) +
+      Number(item.quantity || 0)
+  }
+})
+
+for (const [id, required] of Object.entries(requiredStock)) {
+  const product = products.find(
+    (item) => item.id === Number(id)
+  )
+
+  if (!product || Number(product.stock || 0) < required) {
+    alert(
+      `Estoque fechado insuficiente para ${product?.name || id}.`
     )
+    return
+  }
+}
 
-    for (
-      const [
-        id,
-        required,
-      ] of Object.entries(
-        requiredStock
-      )
-    ) {
-      const product =
-        products.find(
-          (item) =>
-            item.id ===
-            Number(id)
-        )
+for (const [id, required] of Object.entries(requiredMl)) {
+  const product = products.find(
+    (item) => item.id === Number(id)
+  )
 
-      if (!product) {
-        alert(
-          `Produto de estoque não encontrado: ${id}`
-        )
-        return
-      }
+  const availableMl = Number(product?.open_container_ml || 0)
 
-      if (
-        Number(
-          product.stock || 0
-        ) <
-        Number(
-          required
-        )
-      ) {
-        alert(
-          `Estoque insuficiente para ${product.name}.\n\nDisponível: ${product.stock}\nNecessário: ${required}`
-        )
-        return
-      }
-    }
+  if (!product || availableMl < required) {
+    alert(
+      `Ml insuficientes para ${product?.name || id}. Disponível no recipiente aberto: ${availableMl} ml; necessário: ${required} ml.`
+    )
+    return
+  }
+}
 
     const basePrice =
       Number(
@@ -1470,15 +1464,19 @@ function addComboToCart() {
       qtdCombos
 
     stockItems.push({
-      id: product.id,
-      name: product.name,
-      quantity:
-        totalStockQuantity,
-      unitType:
-        component.unit_type,
-      comboComponentId:
-        component.id,
-    })
+  id: product.id,
+  name: product.name,
+  quantity:
+    component.unit_type === "Ml"
+      ? 0
+      : totalStockQuantity,
+  mlQuantity:
+    component.unit_type === "Ml"
+      ? quantityPerCombo * qtdCombos
+      : 0,
+  unitType: component.unit_type,
+  comboComponentId: component.id,
+})
 
     unitCost +=
       Number(
@@ -1609,16 +1607,19 @@ function addComboToCart() {
       }
 
       stockItems.push({
-        id: product.id,
-        name: product.name,
-        quantity:
-          stockQuantity *
-          qtdCombos,
-        unitType:
-          group.unit_type,
-        choiceGroup:
-          group.name,
-      })
+  id: product.id,
+  name: product.name,
+  quantity:
+    group.unit_type === "Ml"
+      ? 0
+      : quantity * qtdCombos,
+  mlQuantity:
+    group.unit_type === "Ml"
+      ? quantity * qtdCombos
+      : 0,
+  unitType: group.unit_type,
+  choiceGroup: group.name,
+})
 
       unitCost +=
         Number(
@@ -1628,61 +1629,59 @@ function addComboToCart() {
     }
   }
 
-  // AGRUPA PRODUTOS REPETIDOS
-  const groupedStock: Record<
-    number,
-    any
-  > = {}
+// AGRUPA PRODUTOS REPETIDOS, SEPARANDO UNIDADES E ML
+const groupedStock: Record<number, any> = {}
 
-  stockItems.forEach(
-    (item) => {
-      if (
-        !groupedStock[item.id]
-      ) {
-        groupedStock[item.id] = {
-          ...item,
-          quantity: 0,
-        }
-      }
+stockItems.forEach((item) => {
+  const id = Number(item.id)
 
-      groupedStock[item.id]
-        .quantity +=
-        Number(
-          item.quantity || 0
-        )
-    }
-  )
-
-  const finalStockItems =
-    Object.values(
-      groupedStock
-    )
-
-  // CONFERE ESTOQUE
-  for (
-    const item of finalStockItems
-  ) {
-    const product =
-      products.find(
-        (product) =>
-          Number(product.id) ===
-          Number(item.id)
-      )
-
-    if (!product) {
-      continue
-    }
-
-    if (
-      Number(product.stock || 0) <
-      Number(item.quantity || 0)
-    ) {
-      alert(
-        `Estoque insuficiente para ${product.name}.\n\nDisponível: ${product.stock}\nNecessário: ${item.quantity}`
-      )
-      return
+  if (!groupedStock[id]) {
+    groupedStock[id] = {
+      ...item,
+      quantity: 0,
+      mlQuantity: 0,
+      unitTypes: [],
     }
   }
+
+  groupedStock[id].quantity += Number(item.quantity || 0)
+  groupedStock[id].mlQuantity += Number(item.mlQuantity || 0)
+
+  if (item.unitType) {
+    groupedStock[id].unitTypes.push(item.unitType)
+  }
+})
+
+const finalStockItems = Object.values(groupedStock)
+
+// CONFERE UNIDADES FECHADAS E ML DO RECIPIENTE ABERTO
+for (const item of finalStockItems) {
+  const product = products.find(
+    (p) => Number(p.id) === Number(item.id)
+  )
+
+  if (!product) {
+    alert(`Produto não encontrado: ${item.name}`)
+    return
+  }
+
+  const requiredUnits = Number(item.quantity || 0)
+  const requiredMl = Number(item.mlQuantity || 0)
+
+  if (Number(product.stock || 0) < requiredUnits) {
+    alert(
+      `Estoque fechado insuficiente para ${product.name}. Disponível: ${product.stock}; necessário: ${requiredUnits}.`
+    )
+    return
+  }
+
+  if (Number(product.open_container_ml || 0) < requiredMl) {
+    alert(
+      `Ml insuficientes para ${product.name}. Disponível no recipiente aberto: ${Number(product.open_container_ml || 0)} ml; necessário: ${requiredMl} ml.`
+    )
+    return
+  }
+}
 
   const unitPrice =
     getComboSalePrice(combo)
@@ -1866,264 +1865,164 @@ const previewProfit =
         )
       : 0
 
-  async function deleteSale(
-    id: number
-  ) {
-    const sale =
-      sales.find(
-        (item) =>
-          item.id === id
-      )
+  async function deleteSale(id: number) {
+  const sale = sales.find((item) => item.id === id)
+  if (!sale) return
 
-    if (!sale) return
+  const confirmDelete = window.confirm(
+    "Excluir essa venda e devolver o estoque?"
+  )
+  if (!confirmDelete) return
 
-    const confirmDelete =
-      window.confirm(
-        "Excluir essa venda e devolver o estoque?"
-      )
+  const stockToReturn: Record<number, number> = {}
+  const mlToReturn: Record<number, number> = {}
 
-    if (!confirmDelete)
-      return
-
-    const stockToReturn: Record<
-      number,
-      {
-        name: string
-        quantity: number
-      }
-    > = {}
-
-    if (
-      Array.isArray(
-        sale.products
-      )
-    ) {
-      sale.products.forEach(
-        (soldProduct: any) => {
-          const items =
-            Array.isArray(
-              soldProduct.stockItems
-            )
-              ? soldProduct.stockItems
-              : [
-                  {
-                    id:
-                      soldProduct.id,
-                    name:
-                      soldProduct.name,
-                    quantity:
-                      Number(
-                        soldProduct.stockQuantity ||
-                          soldProduct.quantity ||
-                          0
-                      ),
-                  },
-                ]
-
-          items.forEach(
-            (stockItem: any) => {
-              if (
-                !stockItem.id
-              ) {
-                return
-              }
-
-              if (
-                !stockToReturn[
-                  stockItem.id
-                ]
-              ) {
-                stockToReturn[
-                  stockItem.id
-                ] = {
-                  name:
-                    stockItem.name,
-                  quantity:
-                    0,
-                }
-              }
-
-              stockToReturn[
-                stockItem.id
-              ].quantity +=
-                Number(
-                  stockItem.quantity ||
-                    0
-                )
-            }
-          )
-        }
-      )
-    }
-
-    for (
-      const [
-        productId,
-        item,
-      ] of Object.entries(
-        stockToReturn
-      )
-    ) {
-      const product =
-        products.find(
-          (p) =>
-            p.id ===
-            Number(
-              productId
-            )
-        )
-
-      if (!product)
-        continue
-
-      const previousStock =
-        Number(
-          product.stock || 0
-        )
-
-      const newStock =
-        previousStock +
-        Number(
-          item.quantity
-        )
-
-      const {
-        error,
-      } = await supabase
-        .from("products")
-        .update({
-          stock:
-            newStock,
-        })
-        .eq(
-          "id",
-          Number(
-            productId
-          )
-        )
-
-      if (error) {
-        console.error(
-          "ERRO AO DEVOLVER ESTOQUE:",
-          error
-        )
-
-        alert(
-          "Erro ao devolver estoque."
-        )
-
-        return
-      }
-
-      const {
-        error:
-          movementError,
-      } = await supabase
-        .from(
-          "stock_movements"
-        )
-        .insert({
-          product_id:
-            product.id,
-
-          product_name:
-            product.name,
-
-          type:
-            "Entrada",
-
-          quantity:
-            Number(
-              item.quantity
+  if (Array.isArray(sale.products)) {
+    sale.products.forEach((soldProduct: any) => {
+      const items = Array.isArray(soldProduct.stockItems)
+        ? soldProduct.stockItems
+        : [{
+            id: soldProduct.id,
+            name: soldProduct.name,
+            quantity: Number(
+              soldProduct.stockQuantity || soldProduct.quantity || 0
             ),
+          }]
 
-          previous_stock:
-            previousStock,
+      items.forEach((stockItem: any) => {
+        const productId = Number(stockItem.id)
+        if (!productId) return
 
-          current_stock:
-            newStock,
+        if (stockItem.unitType === "Ml") {
+          mlToReturn[productId] =
+            (mlToReturn[productId] || 0) +
+            Number(stockItem.mlQuantity || 0)
+        } else {
+          stockToReturn[productId] =
+            (stockToReturn[productId] || 0) +
+            Number(stockItem.quantity || 0)
+        }
+      })
+    })
+  }
 
-          date:
-            new Date().toISOString(),
-        })
+  const returnedUnits: Record<number, number> = {}
+  const returnedMl: Record<number, number> = {}
 
-      if (movementError) {
-        console.error(
-          "ERRO AO REGISTRAR DEVOLUÇÃO:",
-          movementError
-        )
+  for (const [productId, quantity] of Object.entries(stockToReturn)) {
+    const product = products.find(
+      (p) => p.id === Number(productId)
+    )
+    if (!product) continue
 
-        alert(
-          "O estoque foi devolvido, mas houve erro ao registrar o histórico."
-        )
+    const previousStock = Number(product.stock || 0)
+    const newStock = previousStock + quantity
 
-        return
-      }
-    }
-
-    const {
-      error,
-    } = await supabase
-      .from("sales")
-      .delete()
-      .eq(
-        "id",
-        id
-      )
+    const { error } = await supabase
+      .from("products")
+      .update({ stock: newStock })
+      .eq("id", Number(productId))
 
     if (error) {
-      console.error(
-        "ERRO AO EXCLUIR VENDA:",
-        error
-      )
-
-      alert(
-        "Erro ao excluir venda."
-      )
-
+      console.error("Erro ao devolver unidades:", error)
+      alert("Erro ao devolver unidades ao estoque.")
       return
     }
 
-    setProducts(
-      products.map(
-        (product) => {
-          const returned =
-            stockToReturn[
-              product.id
-            ]
+    returnedUnits[product.id] = newStock
 
-          if (!returned) {
-            return product
-          }
+    const { error: movementError } = await supabase
+      .from("stock_movements")
+      .insert({
+        product_id: product.id,
+        product_name: product.name,
+        type: "Entrada",
+        quantity,
+        previous_stock: previousStock,
+        current_stock: newStock,
+        date: new Date().toISOString(),
+        observation: "Devolução por exclusão de venda (unidades)",
+      })
 
-          return {
-            ...product,
-
-            stock:
-              Number(
-                product.stock || 0
-              ) +
-              Number(
-                returned.quantity
-              ),
-          }
-        }
-      )
-    )
-
-    setSales(
-      sales.filter(
-        (item) =>
-          item.id !== id
-      )
-    )
-
-    setSelectedSale(null)
-
-    alert(
-      "Venda excluída e estoque devolvido!"
-    )
+    if (movementError) {
+      console.error("Erro no histórico:", movementError)
+      alert("Unidades devolvidas, mas houve erro no histórico.")
+      return
+    }
   }
+
+  for (const [productId, quantity] of Object.entries(mlToReturn)) {
+    const product = products.find(
+      (p) => p.id === Number(productId)
+    )
+    if (!product) continue
+
+    const previousMl = Number(product.open_container_ml || 0)
+    const newMl = previousMl + quantity
+
+    const { error } = await supabase
+      .from("products")
+      .update({ open_container_ml: newMl })
+      .eq("id", Number(productId))
+
+    if (error) {
+      console.error("Erro ao devolver ml:", error)
+      alert("Erro ao devolver ml ao recipiente aberto.")
+      return
+    }
+
+    returnedMl[product.id] = newMl
+
+    const { error: movementError } = await supabase
+      .from("stock_movements")
+      .insert({
+        product_id: product.id,
+        product_name: product.name,
+        type: "Entrada",
+        quantity,
+        previous_stock: previousMl,
+        current_stock: newMl,
+        date: new Date().toISOString(),
+        observation: `Devolução de ${quantity} ml por exclusão de venda`,
+      })
+
+    if (movementError) {
+      console.error("Erro no histórico de ml:", movementError)
+      alert("Ml devolvidos, mas houve erro no histórico.")
+      return
+    }
+  }
+
+  const { error } = await supabase
+    .from("sales")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error("Erro ao excluir venda:", error)
+    alert("Erro ao excluir venda.")
+    return
+  }
+
+  setProducts((current) =>
+    current.map((product) => ({
+      ...product,
+      stock:
+        returnedUnits[product.id] !== undefined
+          ? returnedUnits[product.id]
+          : product.stock,
+      open_container_ml:
+        returnedMl[product.id] !== undefined
+          ? returnedMl[product.id]
+          : product.open_container_ml,
+    }))
+  )
+
+  setSales((current) => current.filter((item) => item.id !== id))
+  setSelectedSale(null)
+
+  alert("Venda excluída e estoque devolvido!")
+}
 
   async function finalizeSale() {
     if (savingSale)
@@ -2242,173 +2141,296 @@ const previewProfit =
     setSavingSale(true)
 
     try {
-      const requiredStock: Record<
-        number,
-        number
-      > = {}
+   
+const requiredStock: Record<number, number> = {}
+const requiredMl: Record<number, number> = {}
 
-      cart.forEach(
-        (item) => {
-          const items =
-            Array.isArray(
-              item.stockItems
-            )
-              ? item.stockItems
-              : []
+cart.forEach((item) => {
+  const items = Array.isArray(item.stockItems)
+    ? item.stockItems
+    : []
 
-          items.forEach(
-            (stockItem: any) => {
-              requiredStock[
-                stockItem.id
-              ] =
-                (
-                  requiredStock[
-                    stockItem.id
-                  ] || 0
-                ) +
-                Number(
-                  stockItem.quantity ||
-                    0
-                )
-            }
-          )
-        }
+  items.forEach((stockItem: any) => {
+    const id = Number(stockItem.id)
+
+    if (!Number.isFinite(id)) return
+
+    if (stockItem.unitType === "Ml") {
+      const ml = Number(stockItem.mlQuantity || 0)
+
+      if (ml > 0) {
+        requiredMl[id] =
+          (requiredMl[id] || 0) + ml
+      }
+    } else {
+      const quantity = Number(stockItem.quantity || 0)
+
+      if (quantity > 0) {
+        requiredStock[id] =
+          (requiredStock[id] || 0) + quantity
+      }
+    }
+  })
+})
+
+
+// Confere estoque fechado
+for (const [id, required] of Object.entries(requiredStock)) {
+  const product = products.find(
+    (p) => p.id === Number(id)
+  )
+
+  if (!product) {
+    throw new Error(`Produto não encontrado: ${id}`)
+  }
+
+  if (Number(product.stock || 0) < required) {
+    throw new Error(
+      `Estoque insuficiente para ${product.name}. Disponível: ${product.stock}; necessário: ${required}.`
+    )
+  }
+}
+
+
+for (const [id, required] of Object.entries(requiredMl)) {
+  const product = products.find(
+    (p) => p.id === Number(id)
+  );
+
+  if (!product) {
+    throw new Error(`Produto não encontrado: ${id}`);
+  }
+
+  const availableMl = Math.max(
+    0,
+    Number(product.open_container_ml || 0)
+  );
+
+  const capacityMl =
+    Number(product.open_container_capacity_ml || 0) ||
+    parseVolumeToMl(product.volume);
+
+  if (capacityMl <= 0) {
+    throw new Error(
+      `Volume inválido para ${product.name}.`
+    );
+  }
+
+  const remainingMl = Math.max(
+    0,
+    Number(required) - availableMl
+  );
+
+  const bottlesNeeded = Math.ceil(
+    remainingMl / capacityMl
+  );
+
+  const stockAfterOtherUses =
+    Number(product.stock || 0) -
+    Number(requiredStock[Number(id)] || 0);
+
+  if (stockAfterOtherUses < bottlesNeeded) {
+    throw new Error(
+      `Estoque insuficiente para ${product.name}.`
+    );
+  }
+}
+
+
+const stocksAfterSale: Record<number, number> = {}
+const mlAfterSale: Record<number, number> = {}
+
+// Desconta unidades fechadas
+for (const [id, required] of Object.entries(requiredStock)) {
+  if (Number(required) <= 0) continue
+  const product = products.find(
+    (p) => p.id === Number(id)
+  )
+
+  if (!product) continue
+
+  const previousStock = Number(product.stock || 0)
+console.log("DEBUG baixar_estoque:", {
+  produto: product.name,
+  id: product.id,
+  quantidade: required,
+  tipo: typeof required,
+})
+  const { data: newStock, error: stockError } =
+    await supabase.rpc("baixar_estoque", {
+      p_product_id: product.id,
+      p_quantity: required,
+    })
+
+  if (stockError) {
+    throw new Error(
+      `Erro ao atualizar estoque de ${product.name}: ${stockError.message}`
+    )
+  }
+
+  const currentStock = Number(newStock)
+  stocksAfterSale[product.id] = currentStock
+
+  const { error: movementError } = await supabase
+    .from("stock_movements")
+    .insert({
+      product_id: product.id,
+      product_name: product.name,
+      type: "Saída",
+      quantity: required,
+      previous_stock: previousStock,
+      current_stock: currentStock,
+      date: new Date().toISOString(),
+      observation: "Venda de unidades fechadas",
+    })
+
+  if (movementError) {
+    throw new Error(
+      `Erro ao salvar histórico de ${product.name}: ${movementError.message}`
+    )
+  }
+}
+
+
+ // Consome o líquido aberto e abre garrafas automaticamente
+for (const [id, required] of Object.entries(requiredMl)) {
+  const product = products.find(
+    (p) => p.id === Number(id)
+  )
+
+  if (!product) {
+    throw new Error(`Produto não encontrado: ${id}`)
+  }
+
+  let remainingMl = Number(required)
+
+  let currentMl = Math.max(
+    0,
+    Number(product.open_container_ml || 0)
+  )
+
+  const capacityMl =
+    Number(product.open_container_capacity_ml || 0) ||
+    parseVolumeToMl(product.volume)
+
+  if (capacityMl <= 0) {
+    throw new Error(
+      `Volume inválido para ${product.name}.`
+    )
+  }
+
+  const previousMl = currentMl
+
+  // Usa primeiro o líquido que já está aberto
+  const consumedFromOpen = Math.min(
+    currentMl,
+    remainingMl
+  )
+
+  currentMl -= consumedFromOpen
+  remainingMl -= consumedFromOpen
+
+  // Abre novas garrafas se ainda faltar líquido
+  while (remainingMl > 0) {
+    const previousStock =
+      stocksAfterSale[product.id] !== undefined
+        ? stocksAfterSale[product.id]
+        : Number(product.stock || 0)
+
+    if (previousStock <= 0) {
+      throw new Error(
+        `Não há garrafas fechadas suficientes de ${product.name}.`
       )
+    }
 
-      for (
-        const [
-          id,
-          required,
-        ] of Object.entries(
-          requiredStock
-        )
-      ) {
-        const product =
-          products.find(
-            (p) =>
-              p.id ===
-              Number(id)
-          )
+    const { data: newStock, error: stockError } =
+      await supabase.rpc("baixar_estoque", {
+        p_product_id: product.id,
+        p_quantity: 1,
+      })
 
-        if (!product) {
-          throw new Error(
-            `Produto não encontrado: ${id}`
-          )
-        }
+    if (stockError) {
+      throw new Error(
+        `Erro ao abrir garrafa de ${product.name}: ${stockError.message}`
+      )
+    }
 
-        if (
-          Number(
-            product.stock || 0
-          ) < required
-        ) {
-          throw new Error(
-            `Estoque insuficiente para ${product.name}. Disponível: ${product.stock}. Necessário: ${required}.`
-          )
-        }
-      }
+    const currentStock = Number(newStock)
 
-      const stocksAfterSale: Record<
-        number,
-        number
-      > = {}
+    if (!Number.isFinite(currentStock)) {
+      throw new Error(
+        `Não foi possível confirmar o estoque de ${product.name}.`
+      )
+    }
 
-      for (
-        const [
-          id,
-          required,
-        ] of Object.entries(
-          requiredStock
-        )
-      ) {
-        const product =
-          products.find(
-            (p) =>
-              p.id ===
-              Number(id)
-          )
+    stocksAfterSale[product.id] = currentStock
 
-        if (!product) {
-          throw new Error(
-            `Produto não encontrado: ${id}`
-          )
-        }
+    const { error: movementError } = await supabase
+      .from("stock_movements")
+      .insert({
+        product_id: product.id,
+        product_name: product.name,
+        type: "Saída",
+        quantity: 1,
+        previous_stock: previousStock,
+        current_stock: currentStock,
+        date: new Date().toISOString(),
+        observation: "Abertura automática de garrafa para consumo em ml",
+      })
 
-        const previousStock =
-          Number(
-            product.stock || 0
-          )
+    if (movementError) {
+      throw new Error(
+        `Erro ao registrar abertura de ${product.name}: ${movementError.message}`
+      )
+    }
 
-        const {
-          data: newStock,
-          error:
-            stockError,
-        } = await supabase.rpc(
-          "baixar_estoque",
-          {
-            p_product_id:
-              product.id,
+    const consumedFromNewBottle = Math.min(
+      capacityMl,
+      remainingMl
+    )
 
-            p_quantity:
-              Number(
-                required
-              ),
-          }
-        )
+    currentMl = capacityMl - consumedFromNewBottle
+    remainingMl -= consumedFromNewBottle
+  }
 
-        if (stockError) {
-          throw new Error(
-            `Erro ao atualizar estoque de ${product.name}: ${stockError.message}`
-          )
-        }
+  // Atualiza o líquido que restou na garrafa aberta
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({
+      open_container_ml: currentMl,
+      open_container_capacity_ml: capacityMl,
+    })
+    .eq("id", product.id)
 
-        const currentStock =
-          Number(
-            newStock
-          )
+  if (updateError) {
+    throw new Error(
+      `Erro ao atualizar ml de ${product.name}: ${updateError.message}`
+    )
+  }
 
-        stocksAfterSale[
-          product.id
-        ] =
-          currentStock
+  mlAfterSale[product.id] = currentMl
 
-        const {
-          error:
-            movementError,
-        } = await supabase
-          .from(
-            "stock_movements"
-          )
-          .insert({
-            product_id:
-              product.id,
+  // Registra o consumo de ml
+  const { error: movementError } = await supabase
+    .from("stock_movements")
+    .insert({
+      product_id: product.id,
+      product_name: product.name,
+      type: "Saída",
+      quantity: Number(required),
+      previous_stock: previousMl,
+      current_stock: currentMl,
+      date: new Date().toISOString(),
+      observation: `Consumo de ${required} ml em venda`,
+    })
 
-            product_name:
-              product.name,
+  if (movementError) {
+    throw new Error(
+      `Erro ao salvar histórico de ml de ${product.name}: ${movementError.message}`
+    )
+  }
+}
 
-            type:
-              "Saída",
-
-            quantity:
-              Number(
-                required
-              ),
-
-            previous_stock:
-              previousStock,
-
-            current_stock:
-              currentStock,
-
-            date:
-              new Date().toISOString(),
-          })
-
-        if (movementError) {
-          throw new Error(
-            `Erro ao salvar histórico de ${product.name}: ${movementError.message}`
-          )
-        }
-      }
 
       const total =
         finalTotal
@@ -2567,32 +2589,21 @@ status:
         )
       }
 
-      const updatedProducts =
-        products.map(
-          (product) => {
-            if (
-              stocksAfterSale[
-                product.id
-              ] !==
-              undefined
-            ) {
-              return {
-                ...product,
+     const updatedProducts = products.map((product) => {
+  const updated = { ...product }
 
-                stock:
-                  stocksAfterSale[
-                    product.id
-                  ],
-              }
-            }
+  if (stocksAfterSale[product.id] !== undefined) {
+    updated.stock = stocksAfterSale[product.id]
+  }
 
-            return product
-          }
-        )
+  if (mlAfterSale[product.id] !== undefined) {
+    updated.open_container_ml = mlAfterSale[product.id]
+  }
 
-      setProducts(
-        updatedProducts
-      )
+  return updated
+})
+
+setProducts(updatedProducts)
 
       if (newSaleData) {
         setSales([

@@ -17,7 +17,11 @@ export interface Product {
 
   itemsPerPackage: string
 
-  stock: number
+    stock: number
+
+  open_container_ml: number
+
+  open_container_capacity_ml: number
 
   purchasePrice: number
 
@@ -77,7 +81,10 @@ export const products: Product[] = [
 
     itemsPerPackage: "",
 
-    stock: 84,
+       stock: 84,
+
+    open_container_ml: 0,
+    open_container_capacity_ml: 0,
 
     purchasePrice: 4.50,
 
@@ -105,7 +112,10 @@ export const products: Product[] = [
 
     itemsPerPackage: "",
 
-    stock: 20,
+        stock: 20,
+
+    open_container_ml: 0,
+    open_container_capacity_ml: 0,
 
     purchasePrice: 8.00,
 

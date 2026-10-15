@@ -11,7 +11,9 @@ StockMovement
 
 import ProductForm from "../components/products/ProductForm"
 import ProductList from "../components/products/ProductList"
-import StockModal from "../components/products/StockModal"
+import StockModal, {
+  type StockAction
+} from "../components/products/StockModal"
 import StockHistory from "../components/stock/StockHistory"
 
 
@@ -112,15 +114,19 @@ if(movementsError){
 
   if(productsData){
 
-   setProducts(
+  setProducts(
   productsData.map(item => ({
     ...item,
-    purchasePrice: item.purchase_price,
-    salePrice: item.sale_price,
-    salePricePackage:
-  item.sale_price_package,
+    purchasePrice: Number(item.purchase_price || 0),
+    salePrice: Number(item.sale_price || 0),
+    salePricePackage: item.sale_price_package,
     entryType: item.entry_type,
-    itemsPerPackage: item.items_per_package
+    itemsPerPackage: item.items_per_package,
+    stock: Number(item.stock || 0),
+    open_container_ml: Number(item.open_container_ml || 0),
+    open_container_capacity_ml: Number(
+      item.open_container_capacity_ml || 0
+    )
   })) as Product[]
 )
 
@@ -192,6 +198,8 @@ async function saveProduct(product: Product) {
       product.salePricePackage
         ? Number(product.salePricePackage)
         : null,
+        open_container_ml: Number(product.open_container_ml || 0),
+open_container_capacity_ml: Number(product.open_container_capacity_ml || 0),
   }
 
   if (product.id && editingProduct) {
@@ -249,6 +257,8 @@ async function saveProduct(product: Product) {
           data[0].items_per_package,
         stock:
           Number(data[0].stock || 0),
+          open_container_ml: Number(data[0].open_container_ml || 0),
+open_container_capacity_ml: Number(data[0].open_container_capacity_ml || 0),
       }
 
       setProducts([
@@ -307,129 +317,128 @@ function deleteProduct(id:number){
 async function addStock(
   id: number,
   quantity: number,
-  type: "Entrada" | "Saída"
-){
+  type: StockAction,
+  observation = ""
+) {
+  const product = products.find(item => item.id === id)
+  if (!product) return
 
-  const product = products.find(
-    item => item.id === id
+  const previousStock = Number(product.stock || 0)
+  const previousMl = Number(product.open_container_ml || 0)
+  const previousCapacity = Number(
+    product.open_container_capacity_ml || 0
   )
 
-  if(!product)
-    return
+  let currentStock = previousStock
+  let currentMl = previousMl
+  let currentCapacity = previousCapacity
+  let movementQuantity = quantity
+  let movementType: "Entrada" | "Saída" = "Saída"
+  let movementObservation = observation
 
-
-  const previousStock =
-    Number(product.stock)
-
-
-  let currentStock: number
-
-
-  if(type === "Entrada"){
-
-    currentStock =
-      previousStock + quantity
-
-  }else{
-
-    currentStock =
-      previousStock - quantity
-
-
-    if(currentStock < 0){
-
-      alert("Estoque insuficiente")
-
+  if (type === "Entrada") {
+    currentStock += quantity
+    movementType = "Entrada"
+    movementObservation = "Entrada de unidades"
+  } else if (type === "Saída") {
+    if (quantity > previousStock) {
+      alert("Estoque insuficiente.")
       return
-
     }
 
+    currentStock -= quantity
+    movementObservation = "Saída de unidades"
+  } else if (type === "Abrir recipiente") {
+    if (previousStock < 1 || previousMl > 0) {
+      alert("Não é possível abrir outro recipiente agora.")
+      return
+    }
+
+    currentStock -= 1
+    currentMl = quantity
+    currentCapacity = quantity
+    movementQuantity = 1
+    movementObservation = `Abertura de recipiente: ${quantity} ml`
+  } else if (type === "Retirar ml") {
+    if (quantity > previousMl) {
+      alert("Não há ml suficientes no recipiente aberto.")
+      return
+    }
+
+    currentMl = Math.max(0, previousMl - quantity)
+    movementObservation =
+      `Retirada de ${quantity} ml. Motivo: ${observation}`
   }
 
-
-  // Atualiza o estoque no Supabase
-  const { error: productError } =
-    await supabase
-      .from("products")
-      .update({
-        stock: currentStock
-      })
-      .eq("id", id)
-
-
-  if(productError){
-
-    console.error(
-      "ERRO AO ATUALIZAR ESTOQUE:",
-      productError
-    )
-
-    alert("Erro ao atualizar estoque")
-
-    return
-
-  }
-
-
-  // Salva a movimentação no Supabase
-const { data: movementData, error: movementError } =
-  await supabase
-    .from("stock_movements")
-    .insert({
-      product_id: product.id,
-      product_name: product.name,
-      type: type,
-      quantity: quantity,
-      previous_stock: previousStock,
-      current_stock: currentStock,
-      date: new Date().toISOString(),
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({
+      stock: currentStock,
+      open_container_ml: currentMl,
+      open_container_capacity_ml: currentCapacity
     })
-    .select()
+    .eq("id", id)
 
-if (movementError) {
-  console.error(
-    "ERRO AO SALVAR MOVIMENTAÇÃO:",
-    movementError
-  )
+  if (updateError) {
+    console.error(updateError)
+    alert("Erro ao atualizar estoque: " + updateError.message)
+    return
+  }
 
-  alert(
-    "Estoque atualizado, mas houve erro ao salvar o histórico:\n\n" +
+  const { data: movementData, error: movementError } =
+    await supabase
+      .from("stock_movements")
+      .insert({
+        product_id: product.id,
+        product_name: product.name,
+        type: movementType,
+        quantity: movementQuantity,
+        previous_stock: previousStock,
+        current_stock: currentStock,
+        date: new Date().toISOString(),
+        observation: movementObservation
+      })
+      .select()
+
+  if (movementError) {
+    console.error(movementError)
+    alert(
+      "Estoque atualizado, mas o histórico falhou: " +
       movementError.message
-  )
-}
+    )
+  }
 
-
-
-
-
-  // Atualiza o produto na tela
-  const updatedProducts =
-    products.map(item =>
+  setProducts(current =>
+    current.map(item =>
       item.id === id
         ? {
             ...item,
-            stock: currentStock
+            stock: currentStock,
+            open_container_ml: currentMl,
+            open_container_capacity_ml: currentCapacity
           }
         : item
     )
+  )
 
+  if (movementData?.[0]) {
+    const item = movementData[0]
 
-  setProducts(updatedProducts)
-
-
-  // Atualiza o histórico na tela
-  if(movementData){
-
-    const movement =
-      movementData[0] as StockMovement
-
-    setStockMovements([
-      ...stockMovements,
-      movement
+    setStockMovements(current => [
+      {
+        id: item.id,
+        productId: item.product_id,
+        productName: item.product_name,
+        type: item.type,
+        quantity: Number(item.quantity || 0),
+        previousStock: Number(item.previous_stock || 0),
+        currentStock: Number(item.current_stock || 0),
+        date: item.date,
+        observation: item.observation || ""
+      },
+      ...current
     ])
-
   }
-
 }
 
 

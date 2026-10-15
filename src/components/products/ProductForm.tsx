@@ -192,6 +192,9 @@ setSalePricePackage("")
     const newProduct: Product = {
 
 
+open_container_ml: 0,
+open_container_capacity_ml: 0,
+
       id:
         product?.id ??
         Date.now(),

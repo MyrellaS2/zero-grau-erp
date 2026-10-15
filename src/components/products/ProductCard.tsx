@@ -53,17 +53,23 @@ function ProductCard({
 
         </div>
 
-        <div className="text-right">
+       <div className="text-right">
 
-          <p className="text-sm text-gray-500">
-            Estoque
-          </p>
+  <p className="text-sm text-gray-500">
+    Fechados
+  </p>
 
-          <p className="text-2xl font-bold">
-            {product.stock}
-          </p>
+  <p className="text-2xl font-bold">
+    {product.stock}
+  </p>
 
-        </div>
+  {Number(product.open_container_capacity_ml || 0) > 0 && (
+    <p className="text-sm text-blue-700 font-semibold mt-1">
+      Aberto: {Number(product.open_container_ml || 0)} ml restantes
+    </p>
+  )}
+
+</div>
 
       </div>
 
