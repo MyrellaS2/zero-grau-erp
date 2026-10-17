@@ -639,7 +639,7 @@ function productMatchesSearch(item: any, search: string) {
     const qtd =
       Number(quantity)
 
-    if (qtd <= 0) {
+    if (!Number.isInteger(qtd) || qtd <= 0) {
       alert(
         "Quantidade inválida"
       )
@@ -809,6 +809,10 @@ function productMatchesSearch(item: any, search: string) {
     setQuantity("")
     setProductSearch("")
     setSaleType("Unidade")
+  }
+
+  function isMlUnit(unitType: unknown) {
+    return String(unitType || "").trim().toLowerCase() === "ml"
   }
 
   function parseVolumeToMl(
@@ -1036,10 +1040,7 @@ function productMatchesSearch(item: any, search: string) {
       let stockQuantityPerCopao =
         quantityPerCopao
 
-      if (
-        component.unit_type ===
-        "Ml"
-      ) {
+      if (isMlUnit(component.unit_type)) {
         const volumeMl =
           parseVolumeToMl(
             product.volume
@@ -1069,13 +1070,13 @@ function productMatchesSearch(item: any, search: string) {
 
   // Ml não desconta unidades fechadas.
   quantity:
-    component.unit_type === "Ml"
+    isMlUnit(component.unit_type)
       ? 0
       : totalStockQuantity,
 
   // Quantidade real consumida do recipiente aberto.
   mlQuantity:
-    component.unit_type === "Ml"
+    isMlUnit(component.unit_type)
       ? quantityPerCopao * qtdCopoes
       : 0,
 
@@ -1144,12 +1145,12 @@ function productMatchesSearch(item: any, search: string) {
           doseProduct.name,
 
         quantity:
-  doseComponent.unit_type === "Ml"
+  isMlUnit(doseComponent.unit_type)
     ? 0
     : extraDoseQuantity,
 
 mlQuantity:
-  doseComponent.unit_type === "Ml"
+  isMlUnit(doseComponent.unit_type)
     ? Number(doseComponent.quantity || 0) *
       qtdExtras *
       qtdCopoes
@@ -1179,7 +1180,7 @@ const requiredMl: Record<number, number> = {}
 stockItems.forEach((item) => {
   const id = Number(item.id)
 
-  if (item.unitType === "Ml") {
+  if (isMlUnit(item.unitType)) {
     requiredMl[id] =
       (requiredMl[id] || 0) +
       Number(item.mlQuantity || 0)
@@ -1191,6 +1192,12 @@ stockItems.forEach((item) => {
 })
 
 for (const [id, required] of Object.entries(requiredStock)) {
+  if (!Number.isInteger(required)) {
+    throw new Error(
+      `A quantidade de unidades fechadas para o produto ${id} precisa ser inteira. Confira a unidade do componente cadastrado.`
+    )
+  }
+
   const product = products.find(
     (item) => item.id === Number(id)
   )
@@ -1437,8 +1444,7 @@ function addComboToCart() {
       quantityPerCombo
 
     if (
-      component.unit_type ===
-      "Ml"
+      isMlUnit(component.unit_type)
     ) {
       const volumeMl =
         parseVolumeToMl(
@@ -1467,11 +1473,11 @@ function addComboToCart() {
   id: product.id,
   name: product.name,
   quantity:
-    component.unit_type === "Ml"
+    isMlUnit(component.unit_type)
       ? 0
       : totalStockQuantity,
   mlQuantity:
-    component.unit_type === "Ml"
+    isMlUnit(component.unit_type)
       ? quantityPerCombo * qtdCombos
       : 0,
   unitType: component.unit_type,
@@ -1584,8 +1590,7 @@ function addComboToCart() {
         quantity
 
       if (
-        group.unit_type ===
-        "Ml"
+        isMlUnit(group.unit_type)
       ) {
         const volumeMl =
           parseVolumeToMl(
@@ -1610,11 +1615,11 @@ function addComboToCart() {
   id: product.id,
   name: product.name,
   quantity:
-    group.unit_type === "Ml"
+    isMlUnit(group.unit_type)
       ? 0
       : quantity * qtdCombos,
   mlQuantity:
-    group.unit_type === "Ml"
+    isMlUnit(group.unit_type)
       ? quantity * qtdCombos
       : 0,
   unitType: group.unit_type,
@@ -1893,7 +1898,7 @@ const previewProfit =
         const productId = Number(stockItem.id)
         if (!productId) return
 
-        if (stockItem.unitType === "Ml") {
+        if (isMlUnit(stockItem.unitType)) {
           mlToReturn[productId] =
             (mlToReturn[productId] || 0) +
             Number(stockItem.mlQuantity || 0)
@@ -2155,7 +2160,7 @@ cart.forEach((item) => {
 
     if (!Number.isFinite(id)) return
 
-    if (stockItem.unitType === "Ml") {
+    if (isMlUnit(stockItem.unitType)) {
       const ml = Number(stockItem.mlQuantity || 0)
 
       if (ml > 0) {
@@ -2176,6 +2181,12 @@ cart.forEach((item) => {
 
 // Confere estoque fechado
 for (const [id, required] of Object.entries(requiredStock)) {
+  if (!Number.isInteger(required)) {
+    throw new Error(
+      `A quantidade de unidades fechadas para o produto ${id} precisa ser inteira. Confira a unidade do componente cadastrado.`
+    )
+  }
+
   const product = products.find(
     (p) => p.id === Number(id)
   )
@@ -2250,12 +2261,6 @@ for (const [id, required] of Object.entries(requiredStock)) {
   if (!product) continue
 
   const previousStock = Number(product.stock || 0)
-console.log("DEBUG baixar_estoque:", {
-  produto: product.name,
-  id: product.id,
-  quantidade: required,
-  tipo: typeof required,
-})
   const { data: newStock, error: stockError } =
     await supabase.rpc("baixar_estoque", {
       p_product_id: product.id,
@@ -2331,7 +2336,7 @@ for (const [id, required] of Object.entries(requiredMl)) {
   remainingMl -= consumedFromOpen
 
   // Abre novas garrafas se ainda faltar líquido
-  while (remainingMl > 0) {
+  while (remainingMl > 0.000001) {
     const previousStock =
       stocksAfterSale[product.id] !== undefined
         ? stocksAfterSale[product.id]
@@ -2391,6 +2396,7 @@ for (const [id, required] of Object.entries(requiredMl)) {
 
     currentMl = capacityMl - consumedFromNewBottle
     remainingMl -= consumedFromNewBottle
+    if (remainingMl < 0.000001) remainingMl = 0
   }
 
   // Atualiza o líquido que restou na garrafa aberta
