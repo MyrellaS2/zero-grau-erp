@@ -37,6 +37,14 @@ function StockModal({ product, onClose, onSave }: StockModalProps) {
 
   const openMl = Number(product.open_container_ml || 0)
   const closedUnits = Number(product.stock || 0)
+  const observationPlaceholder =
+    type === "Entrada"
+      ? "Ex.: reposição de fornecedor, conferência de estoque..."
+      : type === "Saída"
+        ? "Ex.: avaria, vencimento, uso interno..."
+        : type === "Abrir recipiente"
+          ? "Ex.: início do atendimento, reposição do recipiente..."
+          : "Ex.: consumo interno, sem gás, perda..."
 
   async function handleSave() {
     const value = Number(quantity)
@@ -142,15 +150,16 @@ function StockModal({ product, onClose, onSave }: StockModalProps) {
           />
         )}
 
-        {type === "Retirar ml" && (
-          <textarea
-            className="border rounded-lg p-2 w-full mt-3"
-            placeholder="Motivo: consumo interno, sem gás, perda..."
-            value={observation}
-            onChange={(e) => setObservation(e.target.value)}
-            rows={3}
-          />
-        )}
+        <label className="block text-sm font-medium mt-4 mb-1">
+          Motivo / observação
+        </label>
+        <textarea
+          className="border rounded-lg p-2 w-full"
+          placeholder={observationPlaceholder}
+          value={observation}
+          onChange={(e) => setObservation(e.target.value)}
+          rows={3}
+        />
 
         <div className="flex gap-3 mt-5">
           <Button onClick={handleSave} disabled={saving}>

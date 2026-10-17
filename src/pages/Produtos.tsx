@@ -334,12 +334,15 @@ async function addStock(
   let currentCapacity = previousCapacity
   let movementQuantity = quantity
   let movementType: "Entrada" | "Saída" = "Saída"
-  let movementObservation = observation
+  const reason = observation.trim()
+  let movementObservation = reason
 
   if (type === "Entrada") {
     currentStock += quantity
     movementType = "Entrada"
-    movementObservation = "Entrada de unidades"
+    movementObservation = reason
+      ? `Entrada de unidades — ${reason}`
+      : "Entrada de unidades"
   } else if (type === "Saída") {
     if (quantity > previousStock) {
       alert("Estoque insuficiente.")
@@ -347,7 +350,9 @@ async function addStock(
     }
 
     currentStock -= quantity
-    movementObservation = "Saída de unidades"
+    movementObservation = reason
+      ? `Saída de unidades — ${reason}`
+      : "Saída de unidades"
   } else if (type === "Abrir recipiente") {
     if (previousStock < 1 || previousMl > 0) {
       alert("Não é possível abrir outro recipiente agora.")
@@ -358,7 +363,9 @@ async function addStock(
     currentMl = quantity
     currentCapacity = quantity
     movementQuantity = 1
-    movementObservation = `Abertura de recipiente: ${quantity} ml`
+    movementObservation = reason
+      ? `Abertura de recipiente: ${quantity} ml — ${reason}`
+      : `Abertura de recipiente: ${quantity} ml`
   } else if (type === "Retirar ml") {
     if (quantity > previousMl) {
       alert("Não há ml suficientes no recipiente aberto.")
@@ -367,7 +374,7 @@ async function addStock(
 
     currentMl = Math.max(0, previousMl - quantity)
     movementObservation =
-      `Retirada de ${quantity} ml. Motivo: ${observation}`
+      `Retirada de ${quantity} ml — ${reason}`
   }
 
   const { error: updateError } = await supabase
