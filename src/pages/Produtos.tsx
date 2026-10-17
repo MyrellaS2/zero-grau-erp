@@ -609,10 +609,11 @@ const filteredProducts = products.filter((product) => {
 
 
         </div>
-       <StockHistory
-  movements={stockMovements}
-  products={products}
-/>
+       <div className="xl:col-span-3 min-w-0">
+         <StockHistory
+           movements={stockMovements}
+         />
+       </div>
 
 
 
