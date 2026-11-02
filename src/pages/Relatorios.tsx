@@ -9,9 +9,11 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { supabase } from "../lib/supabase"
+import { buildInitialPaymentEntries, buildReceiptEntries, getReceiptSaleIds } from "../utils/saleReceipts"
 
 function Relatorios() {
   const [sales, setSales] = useState<any[]>([])
+  const [receiptEntries, setReceiptEntries] = useState<any[]>([])
   const [outflows, setOutflows] = useState<any[]>([])
 
   const [loading, setLoading] = useState(true)
@@ -74,6 +76,17 @@ function Relatorios() {
       )
     }
 
+    const { data: receiptData, error: receiptError } = await supabase
+      .from("sale_receipts").select("*")
+    if (receiptError) console.error("ERRO AO CARREGAR PARCELAS PARA RELATÓRIOS:", receiptError)
+    const allSales = salesData || []
+    const missingSaleIds = [...new Set((receiptData || []).map((row: any) => row.sale_id))]
+      .filter((id) => !allSales.some((sale: any) => String(sale.id) === String(id)))
+    const { data: receiptParentSales } = missingSaleIds.length
+      ? await supabase.from("sales").select("*").in("id", missingSaleIds)
+      : { data: [] as any[] }
+    setReceiptEntries(buildReceiptEntries(receiptData || [], [...allSales, ...(receiptParentSales || [])]))
+
     const {
       data: outflowsData,
       error: outflowsError,
@@ -91,9 +104,7 @@ function Relatorios() {
       )
     }
 
-    setSales(
-      salesData || []
-    )
+    setSales(allSales)
 
     setOutflows(
       outflowsData || []
@@ -466,12 +477,26 @@ function Relatorios() {
   ============================================================
   */
 
-  const vendasPagas =
-    vendasDoPeriodo.filter(
-      (sale) =>
-        sale.status ===
-        "Pago"
-    )
+  const receiptSaleIds = getReceiptSaleIds(receiptEntries.map((entry) => ({ sale_id: entry.original_sale_id })))
+  const initialPayments = buildInitialPaymentEntries(sales, receiptSaleIds)
+  const pagamentosIniciaisNoPeriodo = initialPayments.filter((entry) => {
+    if (!periodoSelecionado) return false
+    const dataPagamento = new Date(entry.date)
+    return dataPagamento >= periodoSelecionado.inicio && dataPagamento <= periodoSelecionado.fim
+  })
+  const recebimentosDeFiadoNoPeriodo = receiptEntries.filter((entry) => {
+    if (!periodoSelecionado) return false
+    const dataRecebimento = new Date(entry.received_at)
+    return dataRecebimento >= periodoSelecionado!.inicio && dataRecebimento <= periodoSelecionado!.fim
+  })
+  const vendasPagas = [
+    ...vendasDoPeriodo.filter((sale) =>
+      sale.status === "Pago" &&
+      !receiptSaleIds.has(String(sale.id))
+    ),
+    ...pagamentosIniciaisNoPeriodo,
+    ...recebimentosDeFiadoNoPeriodo,
+  ]
 
   /*
   ============================================================
@@ -556,14 +581,11 @@ function Relatorios() {
   ============================================================
   */
 
-  const quantidadeVendas =
-    vendasPagas.filter(
-      (sale) =>
-        sale.payment !==
-        "Fiado" ||
-        sale.status ===
-        "Pago"
-    ).length
+  const quantidadeVendas = new Set(
+    vendasPagas
+      .filter((sale) => sale.payment !== "Fiado" || sale.status === "Pago")
+      .map((sale) => String(sale.original_sale_id ?? sale.id))
+  ).size
 
   /*
   ============================================================
@@ -630,9 +652,9 @@ function Relatorios() {
           sale
         ) =>
           total +
-          Number(
-            sale.total || 0
-          ),
+          Math.max(0, Number(sale.total || 0) - receiptEntries
+            .filter((entry) => String(entry.original_sale_id) === String(sale.id))
+            .reduce((sum, entry) => sum + Number(entry.received_total || 0), 0)),
         0
       )
 
@@ -748,11 +770,9 @@ function Relatorios() {
       usa a forma usada no recebimento.
       */
 
-      const forma =
-        sale.payment ===
-        "Fiado"
-          ? sale.received_payment
-          : sale.payment
+      const forma = sale.payment === "Fiado"
+        ? sale.received_payment
+        : sale.payment
 
       if (
         forma ===

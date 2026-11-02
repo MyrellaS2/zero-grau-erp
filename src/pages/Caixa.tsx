@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import { buildInitialPaymentEntries, buildReceiptEntries, getReceiptSaleIds } from "../utils/saleReceipts"
 
 function Caixa() {
   const [sales, setSales] = useState<any[]>([])
+  const [receiptEntries, setReceiptEntries] = useState<any[]>([])
+  const receiptSaleIdsForCurrentCash = new Set(
+    receiptEntries.map((entry) => String(entry.original_sale_id))
+  )
   const [cashRegister, setCashRegister] =
     useState<any | null>(null)
 
@@ -316,6 +321,26 @@ function Caixa() {
       )
     }
 
+    const { data: receiptData, error: receiptError } = await supabase
+      .from("sale_receipts").select("*")
+    if (receiptError) console.error("ERRO AO CARREGAR PARCELAS DO CAIXA FECHADO:", receiptError)
+    const allReceiptRows = receiptData || []
+    const receiptRows = allReceiptRows.filter((row: any) => String(row.cash_register_id) === String(cash.id))
+    const knownSales = [...(salesData || []), ...(fiadosData || [])]
+    const missingSaleIds = [...new Set(allReceiptRows.map((row: any) => row.sale_id))]
+      .filter((id) => !knownSales.some((sale: any) => String(sale.id) === String(id)))
+    const { data: receiptParentSales } = missingSaleIds.length
+      ? await supabase.from("sales").select("*").in("id", missingSaleIds)
+      : { data: [] as any[] }
+    const receiptSales = [...knownSales, ...(receiptParentSales || [])]
+    const receiptSaleIds = getReceiptSaleIds(allReceiptRows)
+    const initialPayments = buildInitialPaymentEntries(receiptSales, receiptSaleIds, cash.id)
+      .filter((entry) => {
+        const date = new Date(entry.date).getTime()
+        return date >= new Date(cash.opened_at).getTime() && date <= new Date(cash.closed_at).getTime()
+      })
+    const receiptEntries = initialPayments.concat(buildReceiptEntries(receiptRows, receiptSales))
+
     const combinedSales = [
       ...(salesData || []),
       ...(fiadosData || []),
@@ -331,7 +356,8 @@ function Caixa() {
             ]
           )
         ).values()
-      )
+      ).filter((sale: any) => !receiptSaleIds.has(String(sale.id)) || sale.status === "Pendente")
+        .concat(receiptEntries)
 
     let totalRecebido =
       0
@@ -601,6 +627,7 @@ const valorProdutosHistorico =
 
     if (!currentCash) {
       setSales([])
+      setReceiptEntries([])
       setOutflows([])
       setLoading(false)
       return
@@ -652,6 +679,24 @@ const valorProdutosHistorico =
       )
     }
 
+    const { data: receiptData, error: receiptError } = await supabase
+      .from("sale_receipts").select("*")
+    if (receiptError) console.error("ERRO AO CARREGAR PARCELAS DO CAIXA:", receiptError)
+    const allReceiptRows = receiptData || []
+    const receiptRows = allReceiptRows.filter((row: any) => String(row.cash_register_id) === String(currentCash.id))
+    const knownSales = [...(normalSales || []), ...(oldFiados || [])]
+    const missingSaleIds = [...new Set(allReceiptRows.map((row: any) => row.sale_id))]
+      .filter((id) => !knownSales.some((sale: any) => String(sale.id) === String(id)))
+    const { data: receiptParentSales } = missingSaleIds.length
+      ? await supabase.from("sales").select("*").in("id", missingSaleIds)
+      : { data: [] as any[] }
+    const receiptSales = [...knownSales, ...(receiptParentSales || [])]
+    const receiptSaleIds = getReceiptSaleIds(allReceiptRows)
+    const initialPayments = buildInitialPaymentEntries(receiptSales, receiptSaleIds, currentCash.id)
+      .filter((entry) => new Date(entry.date).getTime() >= new Date(currentCash.opened_at).getTime())
+    const newReceiptEntries = initialPayments.concat(buildReceiptEntries(receiptRows, receiptSales))
+    setReceiptEntries(newReceiptEntries)
+
     const {
       data: outflowsData,
       error: outflowsError,
@@ -694,7 +739,7 @@ const valorProdutosHistorico =
       )
 
     setSales(
-      uniqueSales.sort(
+      uniqueSales.filter((sale: any) => !receiptSaleIds.has(String(sale.id)) || sale.status === "Pendente").sort(
         (a, b) =>
           new Date(
             b.date
@@ -777,7 +822,6 @@ const valorProdutosHistorico =
           }
         )
       : []
-
   /*
   ============================================================
   RECEBIMENTOS DO CAIXA
@@ -788,6 +832,7 @@ const valorProdutosHistorico =
     cashRegister
       ? sales.filter(
           (sale) => {
+            if (!sale.is_receipt_entry && receiptSaleIdsForCurrentCash.has(String(sale.id))) return false
             const payment = String(
               sale.payment || ""
             )
@@ -866,7 +911,7 @@ const valorProdutosHistorico =
               openedAt
             )
           }
-        )
+        ).concat(receiptEntries.filter((entry) => String(entry.received_cash_register_id) === String(cashRegister.id)))
       : []
 
   /*
@@ -880,7 +925,7 @@ const valorProdutosHistorico =
     ? sales.filter(
         (sale) => {
           if (
-            sale.payment !== "Fiado" ||
+            sale.payment !== "Fiado" || receiptSaleIdsForCurrentCash.has(String(sale.id)) ||
             sale.status !== "Pago"
           ) {
             return false
@@ -956,6 +1001,9 @@ const valorProdutosHistorico =
           }
         )
       : []
+  const fiadosRecebidosComParcelas = fiadosRecebidos.concat(
+    receiptEntries.filter((entry) => !entry.is_initial_payment && String(entry.received_cash_register_id) === String(cashRegister?.id))
+  )
 
   /*
   ============================================================
@@ -1640,10 +1688,9 @@ const lucroTotal =
         total,
         sale
       ) =>
-        total +
-        Number(
-          sale.total || 0
-        ),
+        total + Math.max(0, Number(sale.total || 0) - receiptEntries
+          .filter((entry) => String(entry.original_sale_id) === String(sale.id))
+          .reduce((sum, entry) => sum + Number(entry.received_total || 0), 0)),
       0
     )
 
@@ -4807,7 +4854,7 @@ if (caixaAberto && caixaAberto.length > 0) {
 
       {/* FIADOS RECEBIDOS */}
 
-      {fiadosRecebidos.length >
+      {fiadosRecebidosComParcelas.length >
         0 && (
         <div className="mt-8 bg-white p-6 rounded-xl shadow">
 
@@ -4820,7 +4867,7 @@ if (caixaAberto && caixaAberto.length > 0) {
 </p>
           <div className="mt-4 space-y-3">
 
-            {fiadosRecebidos.map(
+            {fiadosRecebidosComParcelas.map(
               (sale) => {
 
                 const custo =
@@ -4829,8 +4876,9 @@ if (caixaAberto && caixaAberto.length > 0) {
                   )
 
               const valorRecebido =
-  Number(sale.received_total || 0) +
-  Number(sale.delivery_fee || 0)
+  sale.is_receipt_entry
+    ? Number(sale.total || 0)
+    : Number(sale.received_total || 0) + Number(sale.delivery_fee || 0)
 
                const lucro =
   valorRecebido -

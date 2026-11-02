@@ -4,6 +4,11 @@ import { supabase } from "../lib/supabase"
 function Fiados() {
   const [sales, setSales] = useState<any[]>([])
   const [payment, setPayment] = useState("")
+  const [payment2, setPayment2] = useState("")
+  const [splitPayment, setSplitPayment] = useState(false)
+  const [paymentValue, setPaymentValue] = useState("")
+  const [payment2Value, setPayment2Value] = useState("")
+  const [receipts, setReceipts] = useState<any[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [discount, setDiscount] = useState("")
   const [addition, setAddition] = useState("")
@@ -31,6 +36,25 @@ function Fiados() {
     }
 
     setSales(data || [])
+    const { data: receiptData, error: receiptError } = await supabase
+      .from("sale_receipts")
+      .select("*")
+    if (receiptError) {
+      console.error("ERRO AO CARREGAR RECEBIMENTOS DE FIADOS:", receiptError)
+      return
+    }
+    setReceipts(receiptData || [])
+  }
+
+  function getReceived(sale: any) {
+    const entries = receipts.filter((receipt) => receipt.sale_id === sale.id)
+    return entries.length
+      ? entries.reduce((sum, receipt) => sum + Number(receipt.amount || 0), 0)
+      : sale.status === "Pago" ? Number(sale.received_total || 0) : 0
+  }
+
+  function getBalance(sale: any) {
+    return Math.max(0, getValorFiado(sale) - getReceived(sale))
   }
 function getValorFiado(sale: any) {
   const payment = String(sale.payment || "")
@@ -67,16 +91,11 @@ function getValorFiado(sale: any) {
 
   return 0
 }
-const pendingFiados = sales.filter(
-  (sale) =>
-    getValorFiado(sale) > 0 &&
-    sale.status === "Pendente"
-)
+const pendingFiados = sales.filter((sale) => getValorFiado(sale) > 0 && getBalance(sale) > 0)
 const paidFiados = sales
   .filter(
     (sale) =>
-      getValorFiado(sale) > 0 &&
-      sale.status === "Pago"
+      getValorFiado(sale) > 0 && getBalance(sale) === 0
   )
   .sort((a, b) => {
     const dateA = a.received_at
@@ -91,7 +110,7 @@ const paidFiados = sales
   })
 const totalFiado = pendingFiados.reduce(
   (total, sale) =>
-    total + getValorFiado(sale),
+    total + getBalance(sale),
   0
 )
 
@@ -101,8 +120,12 @@ const totalFiado = pendingFiados.reduce(
       return
     }
 
-    if (!payment) {
-      alert("Escolha a forma de pagamento!")
+    const firstAmount = Number(String(paymentValue).replace(",", "."))
+    const secondAmount = payment2 ? Number(String(payment2Value).replace(",", ".")) : 0
+    const receivedAmount = firstAmount + secondAmount
+    if (!payment || !paymentValue || !Number.isFinite(firstAmount) || firstAmount <= 0 ||
+      (payment2 && (!payment2Value || !Number.isFinite(secondAmount) || secondAmount <= 0 || payment2 === payment))) {
+      alert("Informe uma ou duas formas de recebimento e seus valores válidos.")
       return
     }
 
@@ -112,6 +135,12 @@ const totalFiado = pendingFiados.reduce(
 
     if (!sale) {
       alert("Fiado não encontrado.")
+      return
+    }
+
+    const balance = getBalance(sale)
+    if (receivedAmount > balance + 0.001) {
+      alert(`O total recebido não pode ultrapassar o saldo devedor de R$ ${balance.toFixed(2)}.`)
       return
     }
 
@@ -235,15 +264,6 @@ const originalAdditionValue =
     O frete fica separado.
     */
 
-  const receivedTotal =
-  Math.max(
-    valorProdutos +
-      frete -
-      discountValue +
-      additionValue,
-    0
-  )
-
     setReceiving(true)
 
     /*
@@ -252,63 +272,35 @@ const originalAdditionValue =
     ============================================================
     */
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("sales")
-      .update({
-  status: "Pago",
-
-  discount:
-    originalDiscountValue,
-
-  addition:
-    originalAdditionValue,
-
-  received_total:
-    receivedTotal,
-
-  received_discount:
-    discountValue,
-
-  received_addition:
-    additionValue,
-
-        received_at:
-          new Date().toISOString(),
-
-        received_cash_register_id:
-          cashRegisterId,
-
-        received_payment:
-          payment,
-      })
-      .eq("id", selectedId)
-      .select()
-
-    if (error) {
-      console.error(
-        "ERRO AO RECEBER FIADO:",
-        error
-      )
-
-      alert(
-        `Erro ao registrar pagamento:\n${error.message}`
-      )
-
+    const receiptRows = [
+      { sale_id: sale.id, amount: firstAmount, payment_method: payment, cash_register_id: cashRegisterId },
+      ...(payment2 ? [{ sale_id: sale.id, amount: secondAmount, payment_method: payment2, cash_register_id: cashRegisterId }] : []),
+    ]
+    const { data: insertedReceipts, error: receiptInsertError } = await supabase
+      .from("sale_receipts").insert(receiptRows).select()
+    if (receiptInsertError || !insertedReceipts) {
+      console.error("ERRO AO REGISTRAR RECEBIMENTO:", receiptInsertError)
+      alert(`Erro ao registrar recebimento: ${receiptInsertError?.message || "tente novamente"}`)
       setReceiving(false)
       return
     }
-
-    if (
-      !data ||
-      data.length === 0
-    ) {
-      alert(
-        "O pagamento não foi atualizado. Verifique as permissões do Supabase."
-      )
-
+    const cumulativeReceived = getReceived(sale) + receivedAmount
+    const complete = cumulativeReceived >= getValorFiado(sale) - 0.001
+    const methods = receiptRows.map((row) => `${row.payment_method}: R$ ${row.amount.toFixed(2)}`).join(" + ")
+    const { data: updatedSale, error: saleUpdateError } = await supabase.from("sales").update({
+      status: complete ? "Pago" : "Pendente",
+      received_total: cumulativeReceived,
+      received_payment: [sale.received_payment, methods].filter(Boolean).join(" | "),
+      received_at: new Date().toISOString(),
+      received_cash_register_id: cashRegisterId,
+      received_discount: Number(sale.received_discount || 0) + discountValue,
+      received_addition: Number(sale.received_addition || 0) + additionValue,
+      discount: originalDiscountValue,
+      addition: originalAdditionValue,
+    }).eq("id", sale.id).select().single()
+    if (saleUpdateError || !updatedSale) {
+      console.error("ERRO AO ATUALIZAR SALDO DO FIADO:", saleUpdateError)
+      alert(`Recebimento registrado, mas não foi possível atualizar o fiado: ${saleUpdateError?.message || ""}`)
       setReceiving(false)
       return
     }
@@ -320,14 +312,15 @@ const originalAdditionValue =
     */
 
     setSales(
-      sales.map((sale) =>
-        sale.id === selectedId
-          ? data[0]
-          : sale
-      )
+      sales.map((item) => item.id === selectedId ? updatedSale : item)
     )
+    setReceipts([...receipts, ...insertedReceipts])
 
     setPayment("")
+setPayment2("")
+setSplitPayment(false)
+setPaymentValue("")
+setPayment2Value("")
 setDiscount("")
 setAddition("")
 setSelectedId(null)
@@ -339,7 +332,8 @@ setSelectedId(null)
       `Produtos: R$ ${valorProdutos.toFixed(2)}\n` +
       `Frete: R$ ${frete.toFixed(2)}\n` +
       `Desconto: R$ ${discountValue.toFixed(2)}\n` +
-      `Recebido: R$ ${receivedTotal.toFixed(2)}`
+      `Recebido: R$ ${receivedAmount.toFixed(2)}\n` +
+      `Saldo restante: R$ ${Math.max(0, balance - receivedAmount).toFixed(2)}`
     )
   }
 
@@ -661,7 +655,7 @@ setAddition("")
                 <div className="text-right">
 
                   <p className="font-bold">
-                   R$ {getValorFiado(sale).toFixed(2)}
+                   R$ {getBalance(sale).toFixed(2)}
                   </p>
 
                   <p className="text-red-600">
@@ -811,8 +805,7 @@ setAddition("")
             return null
           }
 
-          const originalTotal =
-            getValorFiado(selectedSale)
+          const originalTotal = getBalance(selectedSale)
 
           const frete =
             Number(
@@ -837,7 +830,7 @@ setAddition("")
                 .replace(",", ".") || 0
             )
 
-          const receivedTotal =
+          const amountDue =
             Math.max(
               valorProdutos +
                 frete -
@@ -980,7 +973,7 @@ setAddition("")
                     </p>
 
                     <p className="text-3xl font-bold text-green-700">
-                      R$ {receivedTotal.toFixed(2)}
+                      R$ {amountDue.toFixed(2)}
                     </p>
 
                   </div>
@@ -993,19 +986,14 @@ setAddition("")
                       Forma de recebimento
                     </p>
 
-                    <select
-                      className="border p-3 rounded-xl w-full"
-                      value={payment}
-                      onChange={(e) =>
-                        setPayment(
-                          e.target.value
-                        )
-                      }
-                    >
-
-                      <option value="">
-                        Forma de recebimento
-                      </option>
+                    <select className="border p-3 rounded-xl w-full" value={splitPayment ? "Dois" : "Um"} onChange={(e) => { setSplitPayment(e.target.value === "Dois"); setPayment(""); setPayment2(""); setPaymentValue(""); setPayment2Value("") }}>
+                      <option value="Um">Uma forma</option><option value="Dois">Duas formas</option>
+                    </select>
+                    <div className={`mt-3 grid gap-3 ${splitPayment ? "md:grid-cols-2" : "grid-cols-1"}`}>
+                    <div>
+                    <label className="block text-sm text-gray-600">{splitPayment ? "Primeira forma" : "Forma de recebimento"}</label>
+                    <select className="border p-3 rounded-xl w-full mt-1" value={payment} onChange={(e) => setPayment(e.target.value)}>
+                      <option value="">Selecione</option>
 
                       <option value="Pix">
                         Pix
@@ -1024,7 +1012,17 @@ setAddition("")
                       </option>
 
                     </select>
-
+                    <input type="number" min="0.01" step="0.01" className="border p-3 rounded-xl w-full mt-2" placeholder="Valor recebido" value={paymentValue} onChange={(e) => setPaymentValue(e.target.value)} />
+                    </div>
+                    {splitPayment && <div>
+                    <label className="block text-sm text-gray-600">Segunda forma</label>
+                    <select className="border p-3 rounded-xl w-full mt-1" value={payment2} onChange={(e) => setPayment2(e.target.value)}>
+                      <option value="">Selecione</option><option value="Pix">Pix</option><option value="Dinheiro">Dinheiro</option><option value="DÃ©bito">CartÃ£o de dÃ©bito</option><option value="CrÃ©dito">CartÃ£o de crÃ©dito</option>
+                    </select>
+                    <input type="number" min="0.01" step="0.01" className="border p-3 rounded-xl w-full mt-2" placeholder="Valor recebido" value={payment2Value} onChange={(e) => setPayment2Value(e.target.value)} />
+                    </div>}
+                  </div>
+                  <p className="mt-3 text-sm text-gray-600">Total recebido: <strong>R$ {(Number(String(paymentValue).replace(",", ".") || 0) + Number(String(payment2Value).replace(",", ".") || 0)).toFixed(2)}</strong></p>
                   </div>
 
                   {/* BOTÕES */}
@@ -1386,6 +1384,18 @@ setAddition("")
       ).toFixed(2)}
     </span>
   </div>
+
+  {receipts.filter((receipt) => receipt.sale_id === selectedFiado.id).length > 0 && (
+    <div className="mt-3 border-t pt-3">
+      <p className="font-bold mb-2">Histórico de recebimentos</p>
+      {receipts.filter((receipt) => receipt.sale_id === selectedFiado.id).map((receipt) => (
+        <div key={receipt.id} className="flex justify-between gap-3 text-sm py-1">
+          <span>{receipt.payment_method} · Caixa #{receipt.cash_register_id} · {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(receipt.created_at))}</span>
+          <strong>R$ {Number(receipt.amount).toFixed(2)}</strong>
+        </div>
+      ))}
+    </div>
+  )}
 
   {selectedFiado.status === "Pago" && (
     <>
