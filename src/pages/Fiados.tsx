@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import { getFiadoBalance, getFiadoDebt, getFiadoReceivedTotal, isPendingFiado, isSettledFiado } from "../utils/fiadoBalance"
 
 function Fiados() {
   const [sales, setSales] = useState<any[]>([])
@@ -47,55 +48,19 @@ function Fiados() {
   }
 
   function getReceived(sale: any) {
-    const entries = receipts.filter((receipt) => receipt.sale_id === sale.id)
-    return entries.length
-      ? entries.reduce((sum, receipt) => sum + Number(receipt.amount || 0), 0)
-      : sale.status === "Pago" ? Number(sale.received_total || 0) : 0
+    return getFiadoReceivedTotal(sale, receipts)
   }
 
   function getBalance(sale: any) {
-    return Math.max(0, getValorFiado(sale) - getReceived(sale))
+    return getFiadoBalance(sale, receipts)
   }
 function getValorFiado(sale: any) {
-  const payment = String(sale.payment || "")
-
-  // Venda dividida: pega somente a parte que ficou no fiado
-  if (payment.includes(" + ")) {
-    return payment
-      .split(" + ")
-      .reduce((total, part) => {
-        const [method, valueText] =
-          part.split(": R$ ")
-
-        if (
-          String(method).trim() !==
-          "Fiado"
-        ) {
-          return total
-        }
-
-        return (
-          total +
-          Number(
-            String(valueText || "0")
-              .replace(",", ".")
-          )
-        )
-      }, 0)
-  }
-
-  // Venda totalmente fiada
-  if (payment === "Fiado") {
-    return Number(sale.total || 0)
-  }
-
-  return 0
+  return getFiadoDebt(sale)
 }
-const pendingFiados = sales.filter((sale) => getValorFiado(sale) > 0 && getBalance(sale) > 0)
+const pendingFiados = sales.filter((sale) => isPendingFiado(sale, receipts))
 const paidFiados = sales
   .filter(
-    (sale) =>
-      getValorFiado(sale) > 0 && getBalance(sale) === 0
+    (sale) => isSettledFiado(sale, receipts)
   )
   .sort((a, b) => {
     const dateA = a.received_at
@@ -285,7 +250,8 @@ const originalAdditionValue =
       return
     }
     const cumulativeReceived = getReceived(sale) + receivedAmount
-    const complete = cumulativeReceived >= getValorFiado(sale) - 0.001
+    const cumulativeDiscount = Number(sale.received_discount || 0) + discountValue
+    const complete = cumulativeReceived + cumulativeDiscount >= getValorFiado(sale) - 0.001
     const methods = receiptRows.map((row) => `${row.payment_method}: R$ ${row.amount.toFixed(2)}`).join(" + ")
     const { data: updatedSale, error: saleUpdateError } = await supabase.from("sales").update({
       status: complete ? "Pago" : "Pendente",
@@ -293,7 +259,7 @@ const originalAdditionValue =
       received_payment: [sale.received_payment, methods].filter(Boolean).join(" | "),
       received_at: new Date().toISOString(),
       received_cash_register_id: cashRegisterId,
-      received_discount: Number(sale.received_discount || 0) + discountValue,
+      received_discount: cumulativeDiscount,
       received_addition: Number(sale.received_addition || 0) + additionValue,
       discount: originalDiscountValue,
       addition: originalAdditionValue,
