@@ -14,12 +14,12 @@ import { Link } from "react-router-dom"
 
 function Sidebar() {
   return (
-    <aside className="fixed left-0 top-0 w-64 h-screen bg-black text-white p-6">
+    <aside className="app-navigation fixed left-0 top-0 w-64 h-screen bg-black text-white p-6">
       <h1 className="text-2xl font-bold text-blue-500 mb-8">
         ZERO GRAU
       </h1>
 
-      <nav className="space-y-4">
+      <nav className="app-navigation-links space-y-4">
 
         <Link
           to="/"

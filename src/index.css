@@ -1,1 +1,170 @@
 @import "tailwindcss";
+
+/* Mobile layout overrides. Desktop utility styles remain unchanged. */
+@media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100%;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+  .app-shell {
+    min-height: 100dvh;
+    min-width: 0;
+  }
+
+  .app-main {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    padding: 1rem 1rem calc(6rem + env(safe-area-inset-bottom));
+  }
+
+  .app-navigation {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: 100%;
+    height: auto;
+    padding: 0.4rem 0.35rem calc(0.4rem + env(safe-area-inset-bottom));
+    border-top: 1px solid rgb(255 255 255 / 14%);
+  }
+
+  .app-navigation > h1 {
+    display: none;
+  }
+
+  .app-navigation-links {
+    display: flex;
+    gap: 0.2rem;
+    margin: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-navigation-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-navigation-links > a {
+    flex: 0 0 4.1rem;
+    min-width: 4.1rem;
+    min-height: 3.25rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.3rem 0.15rem;
+    border-radius: 0.5rem;
+    font-size: 0.65rem;
+    line-height: 1.1;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .app-navigation-links > a svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: 0 0 auto;
+  }
+
+  main,
+  main * {
+    min-width: 0;
+  }
+
+  main h1 {
+    overflow-wrap: anywhere;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button {
+    min-height: 2.75rem;
+    touch-action: manipulation;
+  }
+
+  main .grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  main .bg-white.p-6 {
+    padding: 1rem;
+  }
+
+  main .min-w-\[240px\] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  main [class~="fixed"][class~="inset-0"] {
+    height: 100vh;
+    height: 100dvh;
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main [class~="fixed"][class~="inset-0"] > div {
+    max-height: calc(100vh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    margin-top: auto;
+    margin-bottom: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-bottom: 2rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main [class~="fixed"][class~="inset-0"] input:focus,
+  main [class~="fixed"][class~="inset-0"] select:focus,
+  main [class~="fixed"][class~="inset-0"] textarea:focus {
+    scroll-margin-block: 1rem 3rem;
+  }
+
+  main table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main canvas,
+  main svg {
+    max-width: 100%;
+  }
+
+  main .flex.justify-end {
+    flex-wrap: wrap;
+  }
+}
