@@ -20,6 +20,7 @@ export function buildReceiptEntries(receipts: any[], sales: any[]) {
       receipt_id: receipt.id,
       is_initial_payment: String(receipt.id).startsWith("initial-"),
       original_sale_id: sale.id,
+      original_payment: sale.payment,
       is_receipt_entry: true,
       payment: receipt.payment_method,
       status: "Pago",
@@ -40,6 +41,24 @@ export function buildReceiptEntries(receipts: any[], sales: any[]) {
       profit: amount - allocatedCost - allocatedFee,
     }]
   })
+}
+
+/** Keeps origin classification separate from the method used for this receipt. */
+export function getOriginalPayment(entry: any) {
+  return String(entry.original_payment ?? entry.payment ?? "")
+}
+
+export function isFiadoOrigin(entry: any) {
+  // Synthetic entries represent the immediate portion of a mixed sale.
+  if (entry.is_initial_payment) return false
+
+  const originalPayment = getOriginalPayment(entry)
+  if (originalPayment === "Fiado") return true
+  if (!originalPayment.includes(" + ")) return false
+
+  return originalPayment.split(" + ").some((part) =>
+    part.split(": R$ ")[0].trim() === "Fiado",
+  )
 }
 
 export function getReceiptSaleIds(receipts: any[]) {

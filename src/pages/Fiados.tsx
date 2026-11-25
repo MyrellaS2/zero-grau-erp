@@ -8,13 +8,18 @@ function Fiados() {
   const [payment2, setPayment2] = useState("")
   const [splitPayment, setSplitPayment] = useState(false)
   const [paymentValue, setPaymentValue] = useState("")
-  const [payment2Value, setPayment2Value] = useState("")
   const [receipts, setReceipts] = useState<any[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [discount, setDiscount] = useState("")
   const [addition, setAddition] = useState("")
   const [receiving, setReceiving] = useState(false)
   const [selectedFiado, setSelectedFiado] = useState<any | null>(null)
+
+  const toCents = (value: unknown) => {
+    const parsed = Number(String(value ?? "").replace(",", ".") || 0)
+    return Number.isFinite(parsed) ? Math.round(parsed * 100) : NaN
+  }
+  const fromCents = (cents: number) => cents / 100
 
   useEffect(() => {
     loadSales()
@@ -85,11 +90,9 @@ const totalFiado = pendingFiados.reduce(
       return
     }
 
-    const firstAmount = Number(String(paymentValue).replace(",", "."))
-    const secondAmount = payment2 ? Number(String(payment2Value).replace(",", ".")) : 0
-    const receivedAmount = firstAmount + secondAmount
-    if (!payment || !paymentValue || !Number.isFinite(firstAmount) || firstAmount <= 0 ||
-      (payment2 && (!payment2Value || !Number.isFinite(secondAmount) || secondAmount <= 0 || payment2 === payment))) {
+    const firstAmountCents = toCents(paymentValue)
+    if (!payment || !paymentValue || !Number.isFinite(firstAmountCents) || firstAmountCents <= 0 ||
+      (splitPayment && (!payment2 || payment2 === payment))) {
       alert("Informe uma ou duas formas de recebimento e seus valores válidos.")
       return
     }
@@ -104,7 +107,23 @@ const totalFiado = pendingFiados.reduce(
     }
 
     const balance = getBalance(sale)
-    if (receivedAmount > balance + 0.001) {
+    const discountValueCents = toCents(discount)
+    const additionValueCents = toCents(addition)
+    const amountDueCents = Math.max(0, toCents(balance) - discountValueCents + additionValueCents)
+    if (!Number.isFinite(discountValueCents) || discountValueCents < 0 || !Number.isFinite(additionValueCents) || additionValueCents < 0) {
+      alert("Informe um desconto e acréscimo válidos.")
+      return
+    }
+    if (firstAmountCents > amountDueCents) {
+      alert(`O valor da primeira forma não pode ultrapassar o total a receber de R$ ${fromCents(amountDueCents).toFixed(2)}.`)
+      return
+    }
+    const secondAmountCents = payment2 ? amountDueCents - firstAmountCents : 0
+    const firstAmount = fromCents(firstAmountCents)
+    const secondAmount = fromCents(secondAmountCents)
+    const receivedAmountCents = firstAmountCents + secondAmountCents
+    const receivedAmount = fromCents(receivedAmountCents)
+    if (receivedAmountCents > amountDueCents) {
       alert(`O total recebido não pode ultrapassar o saldo devedor de R$ ${balance.toFixed(2)}.`)
       return
     }
@@ -184,14 +203,8 @@ const valorFiado =
 const originalAdditionValue =
   Number(sale.addition || 0)
 
-    const discountValue = Number(
-      String(discount)
-        .replace(",", ".") || 0
-    )
-    const additionValue = Number(
-  String(addition)
-    .replace(",", ".") || 0
-)
+    const discountValue = fromCents(discountValueCents)
+    const additionValue = fromCents(additionValueCents)
 
     if (
       isNaN(discountValue) ||
@@ -239,7 +252,7 @@ const originalAdditionValue =
 
     const receiptRows = [
       { sale_id: sale.id, amount: firstAmount, payment_method: payment, cash_register_id: cashRegisterId },
-      ...(payment2 ? [{ sale_id: sale.id, amount: secondAmount, payment_method: payment2, cash_register_id: cashRegisterId }] : []),
+      ...(payment2 && secondAmountCents > 0 ? [{ sale_id: sale.id, amount: secondAmount, payment_method: payment2, cash_register_id: cashRegisterId }] : []),
     ]
     const { data: insertedReceipts, error: receiptInsertError } = await supabase
       .from("sale_receipts").insert(receiptRows).select()
@@ -249,9 +262,10 @@ const originalAdditionValue =
       setReceiving(false)
       return
     }
-    const cumulativeReceived = getReceived(sale) + receivedAmount
-    const cumulativeDiscount = Number(sale.received_discount || 0) + discountValue
-    const complete = cumulativeReceived + cumulativeDiscount >= getValorFiado(sale) - 0.001
+    const cumulativeReceived = fromCents(toCents(getReceived(sale)) + receivedAmountCents)
+    const cumulativeDiscount = fromCents(toCents(sale.received_discount || 0) + discountValueCents)
+    const cumulativeAddition = fromCents(toCents(sale.received_addition || 0) + additionValueCents)
+    const complete = toCents(cumulativeReceived) + toCents(cumulativeDiscount) >= toCents(getValorFiado(sale)) + toCents(cumulativeAddition)
     const methods = receiptRows.map((row) => `${row.payment_method}: R$ ${row.amount.toFixed(2)}`).join(" + ")
     const { data: updatedSale, error: saleUpdateError } = await supabase.from("sales").update({
       status: complete ? "Pago" : "Pendente",
@@ -260,7 +274,7 @@ const originalAdditionValue =
       received_at: new Date().toISOString(),
       received_cash_register_id: cashRegisterId,
       received_discount: cumulativeDiscount,
-      received_addition: Number(sale.received_addition || 0) + additionValue,
+      received_addition: cumulativeAddition,
       discount: originalDiscountValue,
       addition: originalAdditionValue,
     }).eq("id", sale.id).select().single()
@@ -286,7 +300,6 @@ const originalAdditionValue =
 setPayment2("")
 setSplitPayment(false)
 setPaymentValue("")
-setPayment2Value("")
 setDiscount("")
 setAddition("")
 setSelectedId(null)
@@ -784,26 +797,14 @@ setAddition("")
               originalTotal - frete
             )
 
-          const discountValue =
-            Number(
-              String(discount)
-                .replace(",", ".") || 0
-            )
-
-          const additionValue =
-            Number(
-              String(addition)
-                .replace(",", ".") || 0
-            )
-
-          const amountDue =
-            Math.max(
-              valorProdutos +
-                frete -
-                discountValue +
-                additionValue,
-              0
-            )
+          const discountValueCents = toCents(discount)
+          const additionValueCents = toCents(addition)
+          const amountDueCents = Math.max(0, toCents(originalTotal) - discountValueCents + additionValueCents)
+          const amountDue = fromCents(amountDueCents)
+          const firstInputCents = toCents(paymentValue)
+          const safeFirstInputCents = Number.isFinite(firstInputCents) ? Math.max(0, Math.min(firstInputCents, amountDueCents)) : 0
+          const automaticSecondCents = splitPayment ? amountDueCents - safeFirstInputCents : 0
+          const paymentTotalCents = splitPayment ? safeFirstInputCents + automaticSecondCents : safeFirstInputCents
 
           return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -952,7 +953,7 @@ setAddition("")
                       Forma de recebimento
                     </p>
 
-                    <select className="border p-3 rounded-xl w-full" value={splitPayment ? "Dois" : "Um"} onChange={(e) => { setSplitPayment(e.target.value === "Dois"); setPayment(""); setPayment2(""); setPaymentValue(""); setPayment2Value("") }}>
+                  <select className="border p-3 rounded-xl w-full" value={splitPayment ? "Dois" : "Um"} onChange={(e) => { setSplitPayment(e.target.value === "Dois"); setPayment(""); setPayment2(""); setPaymentValue("") }}>
                       <option value="Um">Uma forma</option><option value="Dois">Duas formas</option>
                     </select>
                     <div className={`mt-3 grid gap-3 ${splitPayment ? "md:grid-cols-2" : "grid-cols-1"}`}>
@@ -978,17 +979,17 @@ setAddition("")
                       </option>
 
                     </select>
-                    <input type="number" min="0.01" step="0.01" className="border p-3 rounded-xl w-full mt-2" placeholder="Valor recebido" value={paymentValue} onChange={(e) => setPaymentValue(e.target.value)} />
+                    <input type="number" min="0.01" max={amountDue} step="0.01" className="border p-3 rounded-xl w-full mt-2" placeholder="Valor recebido" value={paymentValue} onChange={(e) => setPaymentValue(e.target.value)} />
                     </div>
                     {splitPayment && <div>
                     <label className="block text-sm text-gray-600">Segunda forma</label>
                     <select className="border p-3 rounded-xl w-full mt-1" value={payment2} onChange={(e) => setPayment2(e.target.value)}>
                       <option value="">Selecione</option><option value="Pix">Pix</option><option value="Dinheiro">Dinheiro</option><option value="DÃ©bito">CartÃ£o de dÃ©bito</option><option value="CrÃ©dito">CartÃ£o de crÃ©dito</option>
                     </select>
-                    <input type="number" min="0.01" step="0.01" className="border p-3 rounded-xl w-full mt-2" placeholder="Valor recebido" value={payment2Value} onChange={(e) => setPayment2Value(e.target.value)} />
+                    <input type="number" min="0" step="0.01" className="border p-3 rounded-xl w-full mt-2 bg-gray-100" placeholder="Calculado automaticamente" value={fromCents(automaticSecondCents).toFixed(2)} readOnly />
                     </div>}
                   </div>
-                  <p className="mt-3 text-sm text-gray-600">Total recebido: <strong>R$ {(Number(String(paymentValue).replace(",", ".") || 0) + Number(String(payment2Value).replace(",", ".") || 0)).toFixed(2)}</strong></p>
+                  <p className="mt-3 text-sm text-gray-600">Total recebido: <strong>R$ {fromCents(paymentTotalCents).toFixed(2)}</strong></p>
                   </div>
 
                   {/* BOTÕES */}

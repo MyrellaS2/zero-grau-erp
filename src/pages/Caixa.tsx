@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
-import { buildInitialPaymentEntries, buildReceiptEntries, getReceiptSaleIds } from "../utils/saleReceipts"
+import { buildInitialPaymentEntries, buildReceiptEntries, isFiadoOrigin, getReceiptSaleIds } from "../utils/saleReceipts"
 
 function Caixa() {
   const [sales, setSales] = useState<any[]>([])
@@ -3661,7 +3661,7 @@ if (caixaAberto && caixaAberto.length > 0) {
                         getValorRecebido(sale)
 
                       const fiadoRecebido =
-                        sale.payment === "Fiado"
+                        isFiadoOrigin(sale)
 
                       return (
                         <div
@@ -3759,7 +3759,7 @@ if (caixaAberto && caixaAberto.length > 0) {
                           <div>
 
                             <p className="font-semibold">
-                              {sale.payment === "Fiado"
+                              {isFiadoOrigin(sale)
                                 ? "📝 Fiado quitado"
                                 : "🛒 Venda normal"}
                             </p>
@@ -3812,7 +3812,7 @@ if (caixaAberto && caixaAberto.length > 0) {
                           <div>
 
                             <p className="font-semibold">
-                              {sale.payment === "Fiado"
+                              {isFiadoOrigin(sale)
                                 ? "📝 Fiado quitado"
                                 : "🛒 Venda normal"}
                             </p>
@@ -3822,7 +3822,7 @@ if (caixaAberto && caixaAberto.length > 0) {
                             </p>
 
                             <p className="text-sm text-gray-500">
-                              {sale.payment === "Fiado"
+                              {isFiadoOrigin(sale)
                                 ? `Quitado em ${formatDate(
                                     sale.received_at
                                   )}`
@@ -4342,8 +4342,7 @@ if (caixaAberto && caixaAberto.length > 0) {
 
                         <p className="text-gray-600">
                           Tipo:{" "}
-                          {sale.payment ===
-                          "Fiado"
+                          {isFiadoOrigin(sale)
                             ? "Fiado recebido"
                             : "Venda normal"}
                         </p>
